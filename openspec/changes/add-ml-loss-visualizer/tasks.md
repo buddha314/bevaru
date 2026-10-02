@@ -67,4 +67,4 @@
 - [x] 7.4 `examples/mnist_svm.rs` (requires `mnist`): 3-vs-8 linear SVM, PCA view plus weight image
 - [x] 7.5 Update `examples/ml_interactive.rs` to open a window and show the sigmoid plot texture
 - [x] 7.6 Update README with quick start, example list, screenshots/GIFs, and dataset attribution
-- [ ] 7.7 Manually verify each spec scenario in the visualization specs against the running examples
+- [x] 7.7 Manually verify each spec scenario in the visualization specs against the running examples *(project owner reported a pass on 2026-10-02; no screenshots supplied)*
