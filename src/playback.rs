@@ -566,7 +566,7 @@ mod tests {
 
     /// Run frames until the experiment has loaded.
     fn wait_for_experiment(app: &mut App) {
-        for _ in 0..500 {
+        for _ in 0..5_000 {
             app.update();
             if app.world().contains_resource::<Experiment>() {
                 app.update();

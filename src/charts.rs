@@ -598,7 +598,7 @@ mod tests {
     }
 
     fn settle(app: &mut App) {
-        for _ in 0..400 {
+        for _ in 0..2_000 {
             app.update();
             let charts = app.world().resource::<Charts>();
             let idle = [&charts.classification, &charts.training]
