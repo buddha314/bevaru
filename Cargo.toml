@@ -21,12 +21,17 @@ edition.workspace = true
 description = "A Bevy plugin that uses ruviz for machine-learning oriented plotting"
 license.workspace = true
 repository.workspace = true
+default-run = "bevaru"
 
 [lints]
 workspace = true
 
 [features]
 mnist = ["bevaru-core/mnist"]
+
+[[bin]]
+name = "bevaru"
+path = "src/main.rs"
 
 [[example]]
 name = "mnist_svm"

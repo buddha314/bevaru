@@ -15,6 +15,8 @@ The data can be synthetic, Iris, or MNIST.
 
 Run these commands from a checkout of the current `main` branch. If Cargo lists only `ml_interactive`, update your checkout: the visualizer examples were added later.
 
+`cargo run` launches the Iris SVM visualizer by default. Use `cargo run --release` for smoother animation, or `cargo run --release --example iris_svm` to select it explicitly.
+
 | Example | Shows |
 | ------- | ----- |
 | `cargo run --release --example iris_svm` | Versicolor vs virginica. A linear SVM's margin narrows and its support vectors thin out as C sweeps from 0.01 to 100. Logistic regression sits beside it as a reference. |
