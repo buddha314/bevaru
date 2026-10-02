@@ -6,6 +6,7 @@
 //! cargo run --release --example iris_svm
 //! ```
 
+#[path = "shared/mod.rs"]
 mod shared;
 
 use bevaru::core::TrainerConfig;
@@ -15,7 +16,7 @@ use bevaru::{
 };
 use bevy::prelude::*;
 
-fn main() {
+pub fn main() {
     let spec = ExperimentSpec::new(
         DatasetChoice::Iris {
             positive: "versicolor".into(),
