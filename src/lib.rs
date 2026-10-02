@@ -1,12 +1,32 @@
+//! Interactive, animated machine-learning visualizations for Bevy.
+//!
+//! Add [`BevaruPlugin`] after `DefaultPlugins` for the full interactive scene,
+//! or after `MinimalPlugins` for headless training and plotting. Pick what
+//! loads with [`StartupExperiment`]; the math lives in [`bevaru_core`],
+//! re-exported as [`core`].
+
+pub mod charts;
+pub mod controls;
+pub mod experiment;
+pub mod geometry;
+pub mod playback;
+pub mod scene;
+
+pub use bevaru_core as core;
+pub use experiment::{
+    DatasetChoice, Experiment, ExperimentSpec, LoadExperiment, StartupExperiment, TrainSpace, View,
+};
+pub use playback::{Playback, PlaybackCommand, Sweep, SweepCommand, SweepParam, SweepSpec};
+
 use bevy::prelude::*;
-use ruviz::prelude::*;
+use ruviz::prelude::Plot;
 
 /// Resource storing the latest rendered plot PNG bytes.
 #[derive(Resource, Default, Clone, Deref, DerefMut)]
 pub struct PlotPngBytes(pub Vec<u8>);
 
-/// Event used to request an interactive plot refresh.
-#[derive(Event, Debug, Default, Clone, Copy)]
+/// Message used to request an interactive plot refresh.
+#[derive(Message, Debug, Default, Clone, Copy)]
 pub struct RefreshPlotEvent;
 
 /// Configuration for generating an ML-friendly sigmoid plot.
@@ -27,14 +47,39 @@ impl Default for MlPlotConfig {
     }
 }
 
+/// Everything bevaru offers. With a renderer present (`DefaultPlugins` added
+/// first) this includes the scene, charts, and control panel; headless apps
+/// get experiments, training playback, sweeps, and the sigmoid plot.
 #[derive(Default)]
 pub struct BevaruPlugin;
 
 impl Plugin for BevaruPlugin {
     fn build(&self, app: &mut App) {
+        app.add_plugins((
+            SigmoidPlotPlugin,
+            experiment::ExperimentPlugin,
+            playback::PlaybackPlugin,
+        ));
+        if app.is_plugin_added::<bevy::render::RenderPlugin>() {
+            app.add_plugins((
+                scene::ScenePlugin,
+                charts::ChartsPlugin,
+                controls::ControlsPlugin,
+            ));
+        }
+    }
+}
+
+/// The original scaffold: a ruviz sigmoid plot kept current in
+/// [`PlotPngBytes`], re-rendered on [`RefreshPlotEvent`].
+#[derive(Default)]
+pub struct SigmoidPlotPlugin;
+
+impl Plugin for SigmoidPlotPlugin {
+    fn build(&self, app: &mut App) {
         app.init_resource::<PlotPngBytes>()
             .init_resource::<MlPlotConfig>()
-            .add_event::<RefreshPlotEvent>()
+            .add_message::<RefreshPlotEvent>()
             .add_systems(Startup, generate_initial_plot)
             .add_systems(Update, refresh_plot_on_event);
     }
@@ -45,7 +90,7 @@ fn generate_initial_plot(mut bytes: ResMut<PlotPngBytes>, config: Res<MlPlotConf
 }
 
 fn refresh_plot_on_event(
-    mut reader: EventReader<RefreshPlotEvent>,
+    mut reader: MessageReader<RefreshPlotEvent>,
     mut bytes: ResMut<PlotPngBytes>,
     config: Res<MlPlotConfig>,
 ) {

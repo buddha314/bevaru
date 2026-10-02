@@ -1,11 +1,48 @@
-[package]
-name = "bevaru"
-version = "0.1.0"
+[workspace]
+members = [".", "crates/bevaru-core"]
+resolver = "3"
+
+[workspace.package]
 edition = "2024"
-description = "A Bevy plugin that uses ruviz for machine-learning oriented plotting"
 license = "MIT"
 repository = "https://github.com/buddha314/bevaru"
 
+# Index loops read better in the numeric code; Bevy systems routinely take
+# many parameters and nested generic types.
+[workspace.lints.clippy]
+needless_range_loop = "allow"
+type_complexity = "allow"
+too_many_arguments = "allow"
+
+[package]
+name = "bevaru"
+version = "0.1.0"
+edition.workspace = true
+description = "A Bevy plugin that uses ruviz for machine-learning oriented plotting"
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+mnist = ["bevaru-core/mnist"]
+
+[[example]]
+name = "mnist_svm"
+required-features = ["mnist"]
+
 [dependencies]
-bevy = { version = "0.14", default-features = false }
-ruviz = "0.14.2"
+bevaru-core = { path = "crates/bevaru-core", version = "0.1.0" }
+bevy = { version = "=0.19.1", default-features = false, features = ["2d", "3d"] }
+bevy_egui = { version = "=0.42.0", default-features = false, features = ["render", "default_fonts", "manage_clipboard"] }
+ruviz = "=0.14.2"
+
+# Bevy and the linear algebra are unusably slow unoptimized; keep our own
+# crates fast to compile but optimize dependencies.
+[profile.dev.package."*"]
+opt-level = 2
+
+# The core is all numerics; unoptimized, a 784-D training step takes ~100x longer.
+[profile.dev.package.bevaru-core]
+opt-level = 2
