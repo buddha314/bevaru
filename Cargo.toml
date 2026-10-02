@@ -1,0 +1,11 @@
+[package]
+name = "bevaru"
+version = "0.1.0"
+edition = "2024"
+description = "A Bevy plugin that uses ruviz for machine-learning oriented plotting"
+license = "MIT"
+repository = "https://github.com/buddha314/bevaru"
+
+[dependencies]
+bevy = { version = "0.14", default-features = false }
+ruviz = "0.14.2"
