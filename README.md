@@ -13,6 +13,8 @@ The data can be synthetic, Iris, or MNIST.
 
 ## Examples
 
+Run these commands from a checkout of the current `main` branch. If Cargo lists only `ml_interactive`, update your checkout: the visualizer examples were added later.
+
 | Example | Shows |
 | ------- | ----- |
 | `cargo run --release --example iris_svm` | Versicolor vs virginica. A linear SVM's margin narrows and its support vectors thin out as C sweeps from 0.01 to 100. Logistic regression sits beside it as a reference. |
@@ -28,6 +30,23 @@ The data can be synthetic, Iris, or MNIST.
 - **Chart panel (right):** loss curves, the training objective, and learned weights.
 - **Mouse:** in 2D, drag to pan and scroll to zoom. In 3D, left-drag to orbit and right-drag to pan.
 - **Keys:** `Space` play/pause · `S` step · `R` reset · `F` frame data.
+
+## Visual verification walkthrough
+
+Run each example from the repository root. The first build may take a few minutes.
+
+1. **Iris SVM and C sweep:** Run `cargo run --release --example iris_svm`. The automatic sweep moves `C` from 0.01 to 100: the SVM boundary and dashed margins should move, support vectors should have gold rings, and the logistic-regression pane should stay fixed. During the sweep, click **+ Compare (add pane)**; three panes should appear and the sweep should stop without a crash. Drag the `C` slider, switch **Hinge** to **Squared hinge**, and press **Play** to watch training continue.
+2. **Regression with outliers:** Run `cargo run --release --example regression_mse_vs_mae`. MSE should lean toward the high outliers, MAE should stay nearer the main trend, and Huber should lie between. Drag **Huber δ** to update its fit and loss curve. In **Display**, toggle **Residuals** and check that the vertical segments appear and disappear.
+3. **Loss curves and playback:** Run `cargo run --release --example loss_curves`. Both classification and regression loss charts should show their legends. Drag the **margin** slider in **Models** and watch the hinge curve change. Press `Space` to pause or play, `S` to step, and `R` to reset. Scrub the step slider backward; the boundary and training-chart marker should follow the selected step.
+4. **MNIST:** Run `cargo run --release --features mnist --example mnist_svm`. The first run downloads and verifies MNIST; `BEVARU_MNIST_DIR` can point to a folder with the four original `*-ubyte.gz` files instead. The 3-vs-8 scene should label its PCA boundary as a **projection**, and the right panel should show a 28 × 28 weight image.
+
+For a 3-D camera check, run Iris, select **3-D (third feature)**, and click **Load**. Left-drag to orbit, right-drag to pan, and scroll to zoom. Press `F` or click **Frame data** to fit every point in view again. Switch back to 2-D to check **Decision regions**; toggle **SVM margins** in either view.
+
+To save a screenshot automatically and exit after eight seconds, for example:
+
+```sh
+BEVARU_SCREENSHOT=iris.png BEVARU_SCREENSHOT_AFTER=8 cargo run --release --example iris_svm
+```
 
 ![MNIST 3 vs 8: the boundary's slice through the top two principal components, and the learned weights](docs/images/mnist.webp)
 
