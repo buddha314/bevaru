@@ -180,6 +180,7 @@ pub struct Sweep {
     timer: f32,
     tasks: Vec<(usize, usize, BevyTask<Result<Snapshot, String>>)>,
     generation: u64,
+    pane_revision: u64,
 }
 
 impl Sweep {
@@ -288,11 +289,20 @@ fn on_new_experiment(
         *sweep = Sweep {
             spec: sweep.spec.clone(),
             generation: experiment.generation,
+            pane_revision: experiment.pane_revision,
             ..default()
         };
         playback.cursor = 0;
         playback.follow = true;
         views.0.clear();
+    } else if sweep.pane_revision != experiment.pane_revision {
+        *sweep = Sweep {
+            spec: sweep.spec.clone(),
+            secs_per_value: sweep.secs_per_value,
+            generation: experiment.generation,
+            pane_revision: experiment.pane_revision,
+            ..default()
+        };
     }
     views
         .0
@@ -331,6 +341,8 @@ fn handle_playback_commands(
             }
             PlaybackCommand::Reset => {
                 experiment.reset();
+                sweep.active = false;
+                sweep.playing = false;
                 playback.cursor = 0;
                 playback.follow = true;
                 playback.playing = false;
@@ -436,6 +448,7 @@ fn handle_sweep_commands(
                     timer: 0.0,
                     tasks,
                     generation: experiment.generation,
+                    pane_revision: experiment.pane_revision,
                 };
             }
             SweepCommand::Stop => {
@@ -665,6 +678,62 @@ mod tests {
             app.update();
         }
         assert_ne!(app.world().resource::<Sweep>().current_value().unwrap(), c);
+    }
+
+    #[test]
+    fn changing_panes_discards_sweep_results() {
+        let mut app = app();
+        wait_for_experiment(&mut app);
+        let spec = SweepSpec {
+            samples: 3,
+            ..default()
+        };
+
+        app.world_mut()
+            .write_message(SweepCommand::Start(spec.clone()));
+        app.update();
+        assert_eq!(app.world().resource::<Sweep>().results.len(), 1);
+        app.world_mut()
+            .resource_mut::<Experiment>()
+            .add_pane(TrainerConfig::logistic())
+            .unwrap();
+        app.update();
+        let sweep = app.world().resource::<Sweep>();
+        assert!(!sweep.active);
+        assert!(sweep.results.is_empty());
+        assert_eq!(app.world().resource::<PaneViews>().0.len(), 2);
+
+        app.world_mut()
+            .write_message(SweepCommand::Start(spec.clone()));
+        app.update();
+        assert_eq!(app.world().resource::<Sweep>().results.len(), 2);
+        let experiment = app.world_mut().resource_mut::<Experiment>();
+        let cfg = experiment.panes[0]
+            .trainer
+            .config()
+            .clone()
+            .with_c(5.0)
+            .unwrap();
+        experiment.into_inner().update_pane(0, cfg).unwrap();
+        app.update();
+        let sweep = app.world().resource::<Sweep>();
+        assert!(!sweep.active);
+        assert!(sweep.results.is_empty());
+        assert_eq!(
+            app.world().resource::<Experiment>().panes[0]
+                .trainer
+                .config()
+                .c(),
+            Some(5.0)
+        );
+
+        app.world_mut().write_message(SweepCommand::Start(spec));
+        app.update();
+        app.world_mut().resource_mut::<Experiment>().remove_pane(0);
+        app.update();
+        assert!(!app.world().resource::<Sweep>().active);
+        assert!(app.world().resource::<Sweep>().results.is_empty());
+        assert_eq!(app.world().resource::<PaneViews>().0.len(), 1);
     }
 
     #[test]

@@ -222,6 +222,8 @@ pub struct Experiment {
     pub frame: DisplayFrame,
     pub panes: Vec<Pane>,
     pub generation: u64,
+    /// Changes whenever the pane configurations backing a sweep change.
+    pub(crate) pane_revision: u64,
     /// Regression only: indices of generated outliers.
     pub outliers: Vec<usize>,
     /// Side length when samples are square images (MNIST), for weight views.
@@ -330,6 +332,7 @@ impl Experiment {
             frame,
             panes,
             generation: 0,
+            pane_revision: 0,
             outliers,
             image_side,
             spec,
@@ -395,6 +398,7 @@ impl Experiment {
     pub fn update_pane(&mut self, i: usize, config: TrainerConfig) -> Result<bool, String> {
         let pane = self.panes.get_mut(i).ok_or("no such pane")?;
         let old = pane.trainer.config();
+        let changed = old != &config;
         let restart = old.model != config.model
             || old.loss != config.loss
             || old.batch_size != config.batch_size
@@ -408,6 +412,9 @@ impl Experiment {
                 .map_err(|e| e.to_string())?;
         }
         self.spec.panes[i] = config;
+        if changed {
+            self.pane_revision += 1;
+        }
         Ok(restart)
     }
 
@@ -427,6 +434,7 @@ impl Experiment {
         let trainer = Trainer::new(config.clone(), self.data.clone()).map_err(|e| e.to_string())?;
         self.panes.push(Pane { trainer });
         self.spec.panes.push(config);
+        self.pane_revision += 1;
         Ok(())
     }
 
@@ -434,6 +442,7 @@ impl Experiment {
         if self.panes.len() > 1 && i < self.panes.len() {
             self.panes.remove(i);
             self.spec.panes.remove(i);
+            self.pane_revision += 1;
         }
     }
 

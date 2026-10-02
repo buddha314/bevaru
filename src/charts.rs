@@ -284,7 +284,7 @@ fn downsample(points: &[(usize, f64)], max: usize) -> (Vec<f64>, Vec<f64>) {
 }
 
 fn training_chart(experiment: &Experiment, playback: &Playback, sweep: &Sweep) -> LineChart {
-    if sweep.active && !sweep.values.is_empty() {
+    if sweep.active && !sweep.values.is_empty() && sweep.results.len() == experiment.panes.len() {
         let log = sweep.spec.log;
         let xs: Vec<f64> = sweep
             .values
