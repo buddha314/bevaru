@@ -1,33 +1,80 @@
 ## ADDED Requirements
 
-### Requirement: Experience catalogue
-The library SHALL define a catalogue of experiences. Each entry SHALL have a stable kebab-case id, a title, a one-sentence description of what it teaches, the experiment it loads, the action taken once it has loaded (none, play training, or start a hyperparameter sweep), and any build requirement. The catalogue SHALL include at least: the Iris SVM C sweep, MSE vs MAE vs Huber regression, loss curves, and MNIST 3 vs 8. The `--example` binaries SHALL be built from the same catalogue entries.
+### Requirement: Experience registry
+The library SHALL provide an experience registry that plugins add to with `App::register_experience`. Each entry SHALL have:
+- a stable kebab-case id;
+- a title;
+- a one-sentence description of what it teaches;
+- a category, used to group cards in the lobby;
+- an optional thumbnail;
+- any build requirement;
+- a kind (see "Experience kinds").
 
-#### Scenario: Ids are unique and stable
-- **WHEN** the catalogue is enumerated
-- **THEN** every id is unique, kebab-case, and the four required experiences are present under the ids `iris-svm`, `regression-mse-vs-mae`, `loss-curves`, and `mnist-svm`
+Registering an id that is already registered SHALL be rejected with an error naming the id. The registry SHALL list entries grouped by category, keeping registration order within each category. The lobby, the `--example` binaries, and command-line selection SHALL all read from the registry.
 
-#### Scenario: Every available experience loads
-- **WHEN** each experience available in the current build is loaded headlessly
-- **THEN** its experiment builds without error
+#### Scenario: Built-in experiences are registered
+- **WHEN** the default experiences are registered
+- **THEN** the registry contains `iris-svm`, `regression-mse-vs-mae`, `loss-curves`, `mnist-svm`, and `sigmoid`, each with a unique kebab-case id and a category
+
+#### Scenario: Third-party registration
+- **WHEN** another plugin calls `register_experience` with a new id
+- **THEN** that experience appears in the lobby under its category, can be started and left like a built-in one, and is reachable via `cargo run -- <id>` when the binary includes that plugin
+
+#### Scenario: Duplicate id
+- **WHEN** two experiences are registered with the same id
+- **THEN** registration fails with an error naming the duplicate id
 
 #### Scenario: Example and lobby agree
 - **WHEN** `cargo run --example iris_svm` is started, and separately `iris-svm` is chosen in the lobby
-- **THEN** both load the same experiment and run the same start action
+- **THEN** both start the same registered experience with the same behaviour
+
+### Requirement: Experience kinds
+An experience SHALL be one of two kinds:
+- **Experiment**: an experiment spec plus an action taken once it has loaded (none, play training, or start a hyperparameter sweep). It uses the standard scene, charts, and control panel.
+- **Custom**: the registering plugin provides its own systems. Those systems run only while that experience is active. The plugin is notified when the experience starts and stops. Entities it marks as belonging to the experience are despawned automatically when it stops.
+
+#### Scenario: Every available experiment experience loads
+- **WHEN** each available experiment-kind experience is loaded headlessly
+- **THEN** its experiment builds without error
+
+#### Scenario: Custom systems are scoped to their experience
+- **WHEN** the `sigmoid` experience is not active
+- **THEN** none of its systems run and none of its entities exist
+
+#### Scenario: Sigmoid as a custom experience
+- **WHEN** the user starts `sigmoid`
+- **THEN** the ruviz sigmoid plot is shown and refreshes as in the `ml_interactive` example, without the experiment control panel
 
 ### Requirement: Lobby screen
-When the `bevaru` binary starts without arguments, it SHALL show a lobby listing every catalogue entry as a card with its title, description, and requirements. No experiment SHALL be loaded and no training SHALL run while the lobby is shown.
+When the `bevaru` binary starts without arguments, it SHALL show a lobby listing every registered experience as a card. Cards SHALL be grouped under category headings and show the thumbnail, title, description, and requirements. Nothing SHALL be loaded and no training SHALL run while the lobby is shown.
 
 #### Scenario: Lobby on plain start
 - **WHEN** a user runs `cargo run`
-- **THEN** the lobby is shown with one card per catalogue entry, and no experiment is loaded
+- **THEN** the lobby is shown with one card per registered experience, grouped by category, and no experiment is loaded
 
 #### Scenario: Lobby is idle
 - **WHEN** the lobby has been shown for 60 frames
-- **THEN** no experiment load has been requested and no chart has been rendered
+- **THEN** no experiment load has been requested, no chart has been rendered, and no custom experience's systems have run
 
-### Requirement: Choosing an experience
-Activating a card SHALL leave the lobby, load that experience's experiment, and run its start action once the experiment has loaded. A loading indicator SHALL be shown until it is ready.
+### Requirement: Thumbnails
+Each card SHALL show its experience's thumbnail. Every built-in experience SHALL ship a thumbnail embedded in the binary, so the lobby works regardless of the working directory. An experience without a thumbnail SHALL show a placeholder with its title, not a broken image. Built-in thumbnails SHALL be reproducible by a documented command.
+
+#### Scenario: Built-in thumbnails present
+- **WHEN** the lobby is shown
+- **THEN** all five built-in cards show their thumbnail images
+
+#### Scenario: Missing thumbnail
+- **WHEN** an experience is registered without a thumbnail
+- **THEN** its card shows a placeholder with its title and is otherwise fully usable
+
+#### Scenario: Run from another directory
+- **WHEN** the built binary is run from a directory other than the repository root
+- **THEN** all built-in thumbnails still display
+
+### Requirement: Starting an experience
+Activating a card SHALL leave the lobby and start that experience:
+- **Experiment kind**: load its experiment, show a loading indicator until it is ready, then run its on-loaded action.
+- **Custom kind**: activate it and send its start notification.
 
 #### Scenario: Pick the Iris sweep
 - **WHEN** the user activates the `iris-svm` card
@@ -38,19 +85,29 @@ Activating a card SHALL leave the lobby, load that experience's experiment, and 
 - **THEN** the user is returned to the lobby and the error is shown on that experience's card
 
 ### Requirement: Returning to the lobby
-While an experience is running, a "Back to lobby" control and the `Esc` key SHALL return to the lobby. Leaving SHALL stop training playback, cancel any in-progress sweep or experiment load, and remove the experience's scene entities, cameras, and chart images, so that choosing another experience starts clean.
+Every experience, experiment or custom, SHALL offer a "Back to lobby" control, and `Esc` SHALL do the same. Leaving SHALL:
+- stop training playback;
+- cancel any in-progress sweep or experiment load;
+- unload the experiment and its scene, cameras, and chart images;
+- send a custom experience its stop notification and despawn its marked entities.
 
-#### Scenario: Back to lobby tears down the experience
+Starting another experience afterwards SHALL begin from a clean state.
+
+#### Scenario: Back to lobby tears down an experiment
 - **WHEN** a user is mid-sweep in `iris-svm` and presses `Esc`
 - **THEN** the lobby is shown, no scene entities or pane cameras remain, the sweep's background tasks are dropped, and no experiment resource remains
+
+#### Scenario: Back to lobby from a custom experience
+- **WHEN** a user in `sigmoid` clicks "Back to lobby"
+- **THEN** the lobby is shown and none of the sigmoid experience's entities remain
 
 #### Scenario: Esc while typing does not leave
 - **WHEN** a UI text field has keyboard focus and the user presses `Esc`
 - **THEN** the experience keeps running
 
 #### Scenario: Round trip
-- **WHEN** a user opens `regression-mse-vs-mae`, returns to the lobby, then opens `loss-curves`
-- **THEN** only the loss-curves experiment's panes and data are shown
+- **WHEN** a user opens `regression-mse-vs-mae`, returns to the lobby, then opens `sigmoid`
+- **THEN** only the sigmoid plot is shown, with no regression panes, markers, or charts
 
 ### Requirement: Availability gating
 Experiences whose build requirement is not met SHALL be listed but disabled, with the reason and how to enable them.
@@ -64,7 +121,10 @@ Experiences whose build requirement is not met SHALL be listed but disabled, wit
 - **THEN** the MNIST card can be activated and notes the one-time ~11 MB download
 
 ### Requirement: Command-line selection
-The `bevaru` binary SHALL accept an experience id as its first argument and open that experience directly, skipping the lobby; `--list` SHALL print every id with its title and exit. An unknown id SHALL print the valid ids and exit with a non-zero status.
+The `bevaru` binary SHALL handle its first argument as follows:
+- an experience id opens that experience directly, skipping the lobby;
+- `--list` prints every id with its title and exits;
+- an unknown id prints the valid ids and exits with a non-zero status.
 
 #### Scenario: Deep link
 - **WHEN** a user runs `cargo run -- loss-curves`
