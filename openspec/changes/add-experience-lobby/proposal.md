@@ -21,6 +21,11 @@
   - picking a card starts that experience;
   - **"Back to lobby"** and `Esc` return to the lobby from every experience, custom ones included;
   - leaving tears down everything the experience created.
+- **Clean-up on leave:**
+  - however an experience is left (Back, `Esc`, a failed load, switching, or quitting), the app returns to its lobby baseline: no leftover entities, assets, egui textures, background tasks, or experience resources;
+  - late results from abandoned loads, sweeps, and chart renders are discarded;
+  - quitting stops the running experience first, and stale partial MNIST downloads are removed;
+  - a ten-round-trip leak test enforces all of this.
 - **Command line:** `cargo run -- <experience-id>` skips the lobby; `cargo run -- --list` prints the ids.
 - **Plugin:** `BevaruPlugin` gains an **idle start** (no experiment loaded), which the lobby requires; today it always loads a default experiment.
 - **Examples:** `examples/*.rs` become thin wrappers that start a registered experience by id. Their behaviour is unchanged.
@@ -29,7 +34,7 @@
 ## Capabilities
 
 ### New Capabilities
-- `experience-lobby`: The experience registry (experiment and custom kinds), the lobby screen with thumbnails and categories, starting and leaving experiences, availability gating, and command-line selection.
+- `experience-lobby`: The experience registry (experiment and custom kinds), the lobby screen with thumbnails and categories, starting and leaving experiences, clean-up on leave and on quit, availability gating, and command-line selection.
 
 ### Modified Capabilities
 - `visualization-scene`: The "Bevy plugin entry point" requirement gains an idle start mode. A new requirement says unloading an experiment must remove everything it created.

@@ -109,6 +109,42 @@ Starting another experience afterwards SHALL begin from a clean state.
 - **WHEN** a user opens `regression-mse-vs-mae`, returns to the lobby, then opens `sigmoid`
 - **THEN** only the sigmoid plot is shown, with no regression panes, markers, or charts
 
+### Requirement: Clean-up on leave
+Leaving an experience SHALL return the app to the state it was in before that experience started. Compared with the lobby before the experience was entered:
+- the number of entities SHALL be the same;
+- the number of mesh, material, and image assets SHALL be the same;
+- no egui texture registered for the experience SHALL remain;
+- no background task (experiment load, sweep, chart render) started by the experience SHALL still be referenced.
+
+Resources inserted by a custom experience SHALL be removed by its stop handling. This SHALL hold however the experience is left: the Back control, `Esc`, a load failure, or switching experiences through the command line or API.
+
+#### Scenario: Repeated round trips do not grow the app
+- **WHEN** each available experience is entered and left ten times in a row
+- **THEN** entity, mesh, material, image, and egui texture counts in the lobby after the last round trip equal those before the first
+
+#### Scenario: Leaving during a load
+- **WHEN** a user leaves `mnist-svm` while its experiment is still loading
+- **THEN** the lobby is shown immediately, and when the background load finishes its result is discarded without creating an `Experiment`, scene entities, or textures
+
+#### Scenario: Leaving during a sweep or chart render
+- **WHEN** a user leaves `iris-svm` while sweep solutions and chart renders are in progress
+- **THEN** none of their results are applied after leaving, and the next experience's charts show only its own data
+
+#### Scenario: Custom experience resources
+- **WHEN** a user leaves `sigmoid`
+- **THEN** its refresh timer and any other resources it inserted no longer exist
+
+### Requirement: Clean-up on quit
+Closing the window or exiting while an experience is running SHALL stop that experience first (its stop notification is sent and its background work is dropped), and SHALL NOT leave partial files behind. A partial MNIST download left by an earlier crash SHALL be removed or replaced on the next load, never read as data.
+
+#### Scenario: Quit mid-experience
+- **WHEN** the user closes the window while `iris-svm` is running a sweep
+- **THEN** the experience's stop notification is sent before the app exits, and the process exits normally
+
+#### Scenario: Stale partial download
+- **WHEN** the MNIST cache directory contains a `.partial` file from an interrupted download
+- **THEN** the next MNIST load ignores it as data, replaces it, and leaves no `.partial` file once the load succeeds
+
 ### Requirement: Availability gating
 Experiences whose build requirement is not met SHALL be listed but disabled, with the reason and how to enable them.
 

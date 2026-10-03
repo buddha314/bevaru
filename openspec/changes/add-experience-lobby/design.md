@@ -95,7 +95,17 @@ An `UnloadExperiment` message removes everything an experiment created:
 `rebuild_scene` keys on `(generation, pane count)`, and generation keeps increasing, so a reload always rebuilds.
 - **Risk**: something added later forgets to register its teardown. Mitigation: a headless test loads, unloads, and asserts that no `SceneEntity`, pane camera, `Experiment` or pending task remains.
 
-### 6. Thumbnails: dedicated PNGs, embedded
+### 6. Clean-up on leave is measured, not assumed
+Leaving must return the app to its lobby baseline (spec: "Clean-up on leave"). The approach:
+- **One exit path:** every way out (Back, `Esc`, load failure, switching, quitting) goes through the same `leave_experience` function. It triggers `ExperienceStopped`, sends `UnloadExperiment`, despawns `ExperienceEntity` and `SceneEntity`, clears `ActiveExperience`, and bumps a **session counter**.
+- **Late results:** async work captures the session counter when spawned, and any result from an older session is discarded on arrival. This covers experiment loads, sweep solutions, and chart renders, which can't be interrupted once their synchronous work has started.
+- **Assets:** per-experiment meshes, materials, and region images are owned only by entity components, so despawning frees them. Experiment-specific images held in resources are removed explicitly: today that's the MNIST weight images in `WeightImages`. The shared chart images are kept and reset to blank, so their count stays constant.
+- **egui textures:** the control panel's texture map currently only grows (`src/controls.rs`). It becomes a resource that releases every texture with `EguiContexts::remove_image` when its image goes away, keeping only the long-lived chart and thumbnail textures.
+- **Quit:** an `AppExit` observer calls `leave_experience` before shutdown.
+- **Partial downloads:** the MNIST loader deletes stale `*.partial` files before downloading.
+- **Proof:** a headless test enters and leaves every available experience ten times. It compares entity, `Assets<Mesh>`, `Assets<StandardMaterial>`, `Assets<Image>`, and egui texture counts against the lobby baseline, and asserts that sweep, load, and chart-render tasks are empty.
+
+### 7. Thumbnails: dedicated PNGs, embedded
 - **Image:** each built-in experience has `assets/thumbnails/<id>.png`, 480×270, cropped to the scene area, embedded with `include_bytes!`.
 - **Loading:** the first time the lobby shows, the bytes are decoded into a Bevy `Image` via `Image::from_buffer` and registered as egui textures once.
 - **Third-party thumbnails:** `Thumbnail::Embedded(&'static [u8])` or `Thumbnail::Asset(&'static str)`, loaded through the `AssetServer`. `None` gets a placeholder with the title on a tinted card.
@@ -103,7 +113,7 @@ An `UnloadExperiment` message removes everything an experiment created:
 - **Why embedded**: the spec requires thumbnails to work from any working directory, and `include_bytes!` makes the binary self-contained. The cost is about 50–120 KB per image.
 - **Regeneration:** the existing `DevScreenshot` support, plus a `--thumbnail` mode that captures only the scene viewport. That mode reuses the pane rect, so it doesn't depend on panel widths. A script (`scripts/thumbnails.sh`) runs every registered id and writes `assets/thumbnails/`. It is documented in the README.
 
-### 7. Lobby UI in egui
+### 8. Lobby UI in egui
 - **Layout:** an `egui::CentralPanel` with category headings, each followed by a responsive wrapped grid of cards.
 - **Card contents:** thumbnail, title, summary, requirement note, and the last error if a load failed.
 - **States:** a disabled card is drawn dimmed and is not clickable.
@@ -111,7 +121,7 @@ An `UnloadExperiment` message removes everything an experiment created:
 - **`Esc`:** returns to the lobby unless `EguiWantsInput::wants_any_keyboard_input()`.
 - **Why**: reuses the existing UI camera, fonts, and theming. A Bevy-UI lobby would add a second UI system.
 
-### 8. Command line before the `App` is built
+### 9. Command line before the `App` is built
 `src/main.rs` parses arguments with a pure `fn parse_args(args, registry) -> Result<Launch, String>`, unit-tested without a window, and with no clap dependency:
 - `--list` prints the ids and exits with code 0;
 - an unknown id prints the ids to stderr and exits with code 2 without opening a window;
@@ -119,13 +129,13 @@ An `UnloadExperiment` message removes everything an experiment created:
 
 Building the registry needs an `App`. `main` builds the app first, reads the registry from it, then either runs or exits. The window only opens when `run()` is called, so exiting early never shows one.
 
-### 9. Examples become one-liners
+### 10. Examples become one-liners
 Each example becomes `fn main() { shared::run_experience("iris-svm") }`. `run_experience` builds the windowed app with `LobbyPlugin` configured to start directly in that id, so `cargo run --example` behaves as before, and "Back to lobby" now works there too.
 
 ## Risks / Trade-offs
 
 - **Leaving mid-load leaves a task computing in the background** → dropping the `Task` cancels it at the next await point. `Experiment::build` runs synchronously inside the task, so an MNIST PCA already running finishes and its result is discarded: a second or two of wasted CPU, never shown.
-- **A custom experience spawns entities without `ExperienceEntity`** → they would leak into the lobby. Mitigation: the round-trip test checks for leftovers, and the README's "adding an experience" section shows the marker in its example.
+- **A custom experience spawns entities without `ExperienceEntity`, or inserts resources it doesn't remove** → they would leak into the lobby. Mitigation: the ten-round-trip test catches entity, asset, and texture growth for every registered experience, including third-party ones registered in the test app. The README's "adding an experience" section shows the marker and the stop handler.
 - **Thumbnails go stale as visuals change** → they're regenerated by one command, and a missing or stale thumbnail never breaks anything.
 - **The MNIST card fails offline** → the error shows on the card, including the `BEVARU_MNIST_DIR` hint.
 - **The lobby and the control panel both want the central egui area** → they're mutually exclusive by state, and a test asserts the control system doesn't run in `Lobby`.
