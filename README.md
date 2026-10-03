@@ -108,6 +108,24 @@ MNIST is optional, behind the `mnist` cargo feature.
   cargo test -p bevaru-core --features mnist --release -- --ignored
   ```
 
+## Known issues
+
+These leaks will be fixed by the [`add-experience-lobby`](openspec/changes/add-experience-lobby/design.md) change ([#12](https://github.com/buddha314/bevaru/issues/12), [#13](https://github.com/buddha314/bevaru/pull/13)). It adds a leak test that enters and leaves every experience ten times and checks that nothing grows.
+
+- **egui texture registrations are never released.**
+  - **What leaks:** the control panel registers an egui texture for each chart and weight image it shows (`src/controls.rs`, the `textures` map in `ui`). It never removes them, from its own map or from bevy_egui's.
+  - **Not a memory leak:** registrations are weak, so the images themselves are freed. What accumulates is bookkeeping.
+  - **When it grows:** by one entry per pane each time the MNIST weight images are recreated. That happens when you load MNIST after a non-image experiment, or add a pane.
+  - **Fix:** a texture registry that calls `EguiContexts::remove_image` when an image goes away.
+- **MNIST weight images will outlive their experiment once experiments can be unloaded.**
+  - **Today:** this isn't a leak. Loading a non-image experiment clears them.
+  - **Why it matters:** `WeightImages` is only updated while an `Experiment` exists (`src/charts.rs`, `update_weight_images`). Once the lobby adds unloading, the images would stay in memory after leaving MNIST.
+  - **Fix:** remove them explicitly as part of unloading.
+- **Partial MNIST downloads can be left behind.**
+  - **What happens:** a crash or kill during a download can leave a `*.partial` file in the cache.
+  - **Why it's harmless:** it's never read as data, and the next successful download overwrites it.
+  - **Fix:** delete stale partial files before downloading.
+
 ## Datasets and credits
 
 - **Iris:** Fisher's Iris data (R. A. Fisher, 1936), public domain. The bundled copy is scikit-learn's, which fixes two errors in the UCI file.
