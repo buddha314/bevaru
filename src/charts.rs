@@ -16,7 +16,7 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::tasks::{AsyncComputeTaskPool, Task as BevyTask, futures::check_ready};
 use ruviz::prelude::{Color as RColor, LineStyle, Plot};
 
-use crate::experiment::{Experiment, fmt_num};
+use crate::experiment::{Experiment, UnloadExperiment, fmt_num};
 use crate::playback::{PaneViews, Playback, Sweep};
 use crate::scene::CLASS_COLORS;
 
@@ -91,7 +91,9 @@ impl Plugin for ChartsPlugin {
         app.init_resource::<ChartSettings>()
             .init_resource::<Charts>()
             .init_resource::<WeightImages>()
+            .add_message::<UnloadExperiment>()
             .add_systems(Startup, create_chart_images)
+            .add_systems(PreUpdate, unload_charts)
             .add_systems(
                 Update,
                 (request_charts, collect_charts, update_weight_images)
@@ -100,6 +102,40 @@ impl Plugin for ChartsPlugin {
                     .run_if(resource_exists::<Experiment>),
             );
     }
+}
+
+/// Drop pending renders, blank the shared chart images (kept, so their count
+/// never changes), and remove the experiment's weight images.
+fn unload_charts(
+    mut requests: MessageReader<UnloadExperiment>,
+    mut settings: ResMut<ChartSettings>,
+    mut charts: ResMut<Charts>,
+    mut weights: ResMut<WeightImages>,
+    mut images: ResMut<Assets<Image>>,
+) {
+    if requests.read().count() == 0 {
+        return;
+    }
+    let charts = &mut *charts;
+    for slot in [
+        &mut charts.classification,
+        &mut charts.regression,
+        &mut charts.training,
+    ] {
+        slot.shown = None;
+        slot.wanted = None;
+        slot.pending = None;
+        slot.visible = false;
+        if let Some(mut image) = images.get_mut(&slot.image) {
+            *image = blank(settings.size);
+        }
+    }
+    for handle in weights.images.drain(..) {
+        images.remove(&handle);
+    }
+    weights.max_abs.clear();
+    // The loss overlay is chosen per experience (e.g. loss-curves shows all).
+    settings.overlay.clear();
 }
 
 fn blank(size: UVec2) -> Image {

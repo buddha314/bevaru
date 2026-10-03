@@ -5,10 +5,14 @@
 //! loads with [`StartupExperiment`]; the math lives in [`bevaru_core`],
 //! re-exported as [`core`].
 
+pub mod app;
+pub mod capture;
 pub mod charts;
 pub mod controls;
+pub mod experiences;
 pub mod experiment;
 pub mod geometry;
+pub mod lobby;
 pub mod playback;
 pub mod scene;
 

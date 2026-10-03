@@ -546,6 +546,35 @@ pub struct LoadExperiment(pub ExperimentSpec);
 #[derive(Resource, Debug, Clone)]
 pub struct StartupExperiment(pub ExperimentSpec);
 
+/// Whether [`ExperimentPlugin`] loads an experiment at startup.
+#[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum StartupMode {
+    /// Load [`StartupExperiment`], or the default experiment (the default).
+    #[default]
+    Load,
+    /// Start with nothing loaded until a [`LoadExperiment`] arrives. The
+    /// scene, charts, playback, and controls stay idle.
+    Idle,
+}
+
+/// Unload the current experiment and cancel any load in progress. Every
+/// plugin that keeps per-experiment state clears it on this message, so a
+/// later load starts as if the app were fresh.
+#[derive(Message, Debug, Clone, Copy, Default)]
+pub struct UnloadExperiment;
+
+/// Triggered when a requested experiment has been built and inserted.
+#[derive(Event, Debug, Clone)]
+pub struct ExperimentLoaded {
+    pub generation: u64,
+}
+
+/// Triggered when a requested experiment failed to build.
+#[derive(Event, Debug, Clone)]
+pub struct ExperimentLoadFailed {
+    pub error: String,
+}
+
 #[derive(Resource, Default)]
 pub struct ExperimentLoader {
     task: Option<BevyTask<Result<Experiment, String>>>,
@@ -555,24 +584,54 @@ pub struct ExperimentLoader {
     generation: u64,
 }
 
+impl ExperimentLoader {
+    /// Whether a load is in progress.
+    pub fn is_loading(&self) -> bool {
+        self.task.is_some()
+    }
+}
+
 pub struct ExperimentPlugin;
 
 impl Plugin for ExperimentPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<LoadExperiment>()
+            .add_message::<UnloadExperiment>()
             .init_resource::<ExperimentLoader>()
             .add_systems(Startup, request_startup_experiment)
-            .add_systems(PreUpdate, (start_loading, finish_loading).chain());
+            .add_systems(
+                PreUpdate,
+                (unload_experiment, start_loading, finish_loading).chain(),
+            );
     }
 }
 
 fn request_startup_experiment(
+    mode: Option<Res<StartupMode>>,
     startup: Option<Res<StartupExperiment>>,
     mut load: MessageWriter<LoadExperiment>,
 ) {
+    if mode.is_some_and(|m| *m == StartupMode::Idle) {
+        return;
+    }
     load.write(LoadExperiment(
         startup.map(|s| s.0.clone()).unwrap_or_default(),
     ));
+}
+
+fn unload_experiment(
+    mut commands: Commands,
+    mut requests: MessageReader<UnloadExperiment>,
+    mut loader: ResMut<ExperimentLoader>,
+) {
+    if requests.read().count() == 0 {
+        return;
+    }
+    // Dropping the task cancels the load; its result can never arrive.
+    loader.task = None;
+    loader.loading = None;
+    loader.error = None;
+    commands.remove_resource::<Experiment>();
 }
 
 fn start_loading(
@@ -602,10 +661,14 @@ fn finish_loading(mut commands: Commands, mut loader: ResMut<ExperimentLoader>) 
             loader.generation += 1;
             experiment.generation = loader.generation;
             commands.insert_resource(experiment);
+            commands.trigger(ExperimentLoaded {
+                generation: loader.generation,
+            });
         }
         Err(e) => {
             error!("bevaru: experiment failed to load: {e}");
-            loader.error = Some(e);
+            loader.error = Some(e.clone());
+            commands.trigger(ExperimentLoadFailed { error: e });
         }
     }
 }

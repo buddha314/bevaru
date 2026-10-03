@@ -361,6 +361,7 @@ dependencies = [
  "bevaru-core",
  "bevy",
  "bevy_egui",
+ "image",
  "ruviz",
 ]
 

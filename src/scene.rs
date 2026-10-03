@@ -15,7 +15,7 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::window::PrimaryWindow;
 use bevy_egui::input::EguiWantsInput;
 
-use crate::experiment::Experiment;
+use crate::experiment::{Experiment, UnloadExperiment};
 use crate::geometry::Boundary;
 use crate::playback::PaneViews;
 
@@ -92,8 +92,9 @@ pub struct FrameData;
 #[derive(Default, Reflect, GizmoConfigGroup)]
 pub struct MarginGizmos;
 
+/// Everything the scene spawns for an experiment; despawned on unload.
 #[derive(Component)]
-struct SceneEntity;
+pub(crate) struct SceneEntity;
 
 #[derive(Debug, Clone, Copy)]
 struct CameraRig {
@@ -142,9 +143,12 @@ impl Plugin for ScenePlugin {
         app.init_resource::<SceneSettings>()
             .init_resource::<UiInsets>()
             .add_message::<FrameData>()
+            .add_message::<UnloadExperiment>()
+            .init_resource::<BuiltScene>()
             .init_gizmo_group::<MarginGizmos>()
             .insert_resource(ClearColor(BACKGROUND))
             .add_systems(Startup, setup)
+            .add_systems(PreUpdate, unload_scene)
             .add_systems(
                 Update,
                 (
@@ -206,6 +210,28 @@ fn setup(
     });
 }
 
+/// The `(generation, pane count)` the scene was last built for.
+#[derive(Resource, Default)]
+struct BuiltScene(Option<(u64, usize)>);
+
+/// Despawn every pane's cameras, lights, markers, regions, and planes. Their
+/// meshes, materials, and region images are owned only by these entities,
+/// so the assets are freed with them.
+fn unload_scene(
+    mut commands: Commands,
+    mut requests: MessageReader<UnloadExperiment>,
+    mut built: ResMut<BuiltScene>,
+    entities: Query<Entity, With<SceneEntity>>,
+) {
+    if requests.read().count() == 0 {
+        return;
+    }
+    built.0 = None;
+    for e in &entities {
+        commands.entity(e).despawn();
+    }
+}
+
 fn rebuild_scene(
     mut commands: Commands,
     experiment: Res<Experiment>,
@@ -214,13 +240,13 @@ fn rebuild_scene(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
     old: Query<Entity, With<SceneEntity>>,
-    mut built: Local<Option<(u64, usize)>>,
+    mut built: ResMut<BuiltScene>,
 ) {
     let key = (experiment.generation, experiment.panes.len());
-    if *built == Some(key) {
+    if built.0 == Some(key) {
         return;
     }
-    *built = Some(key);
+    built.0 = Some(key);
     for e in &old {
         commands.entity(e).despawn();
     }
