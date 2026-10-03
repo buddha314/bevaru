@@ -21,6 +21,7 @@ use crate::experiment::{
     DatasetChoice, Experiment, ExperimentLoader, ExperimentSpec, LoadExperiment, MAX_PANES,
     TrainSpace, View, fmt_num,
 };
+use crate::lobby::{AppScreen, LeaveExperience};
 use crate::playback::{
     PaneViews, Playback, PlaybackCommand, Sweep, SweepCommand, SweepParam, SweepSpec,
 };
@@ -34,6 +35,8 @@ impl Plugin for ControlsPlugin {
             app.add_plugins(EguiPlugin::default());
         }
         app.init_resource::<Draft>()
+            .init_resource::<EguiImageTextures>()
+            .add_message::<LeaveExperience>()
             .add_systems(Startup, spawn_ui_camera)
             .add_systems(EguiPrimaryContextPass, ui)
             .add_systems(
@@ -265,6 +268,7 @@ struct Writers<'w> {
     sweep: MessageWriter<'w, SweepCommand>,
     load: MessageWriter<'w, LoadExperiment>,
     frame: MessageWriter<'w, FrameData>,
+    leave: MessageWriter<'w, LeaveExperience>,
 }
 
 #[derive(SystemParam)]
@@ -282,6 +286,44 @@ struct Views<'w> {
     charts: Res<'w, Charts>,
     weights: Res<'w, WeightImages>,
     loader: Res<'w, ExperimentLoader>,
+    images: Res<'w, Assets<Image>>,
+    /// Present when the app has a lobby.
+    screen: Option<Res<'w, State<AppScreen>>>,
+    hide_overlays: Option<Res<'w, crate::capture::HideOverlays>>,
+}
+
+/// egui textures registered for Bevy images (charts, weight images). Images
+/// are registered weakly, so their memory is freed with the asset; this map
+/// and bevy_egui's registration are released here when the image goes away,
+/// so they don't accumulate across experiments.
+#[derive(Resource, Default)]
+pub struct EguiImageTextures(HashMap<AssetId<Image>, egui::TextureId>);
+
+impl EguiImageTextures {
+    fn get_or_add(
+        &mut self,
+        id: AssetId<Image>,
+        add: impl FnOnce() -> egui::TextureId,
+    ) -> egui::TextureId {
+        *self.0.entry(id).or_insert_with(add)
+    }
+
+    /// Forget images that no longer exist; returns their ids for release.
+    fn take_stale(&mut self, exists: impl Fn(AssetId<Image>) -> bool) -> Vec<AssetId<Image>> {
+        let stale: Vec<_> = self.0.keys().copied().filter(|id| !exists(*id)).collect();
+        for id in &stale {
+            self.0.remove(id);
+        }
+        stale
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 fn ui(
@@ -292,13 +334,27 @@ fn ui(
     views: Views,
     mut out: Writers,
     window: Single<&Window, With<PrimaryWindow>>,
-    mut textures: Local<HashMap<AssetId<Image>, egui::TextureId>>,
+    mut textures: ResMut<EguiImageTextures>,
     mut pane_error: Local<Option<String>>,
 ) -> Result {
+    for id in textures.take_stale(|id| views.images.contains(id)) {
+        contexts.remove_image(id);
+    }
+    // With a lobby, the panels belong to running experiment experiences only;
+    // the lobby, loading screen, and custom experiences draw their own UI.
+    if views
+        .screen
+        .as_ref()
+        .is_some_and(|s| *s.get() != AppScreen::Running)
+        || (views.screen.is_some() && experiment.is_none())
+    {
+        *settings.insets = UiInsets::default();
+        return Ok(());
+    }
     let mut texture = |h: &Handle<Image>| {
-        *textures
-            .entry(h.id())
-            .or_insert_with(|| contexts.add_image(EguiTextureHandle::Weak(h.id())))
+        textures.get_or_add(h.id(), || {
+            contexts.add_image(EguiTextureHandle::Weak(h.id()))
+        })
     };
     let chart_tex = [
         (
@@ -339,7 +395,13 @@ fn ui(
         .min_size(280.0)
         .show(&mut root, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.heading("bevaru");
+                ui.horizontal(|ui| {
+                    if views.screen.is_some() && ui.button("◀ Lobby").on_hover_text("Esc").clicked()
+                    {
+                        out.leave.write(LeaveExperience);
+                    }
+                    ui.heading("bevaru");
+                });
                 if let Some(label) = &views.loader.loading {
                     ui.horizontal(|ui| {
                         ui.spinner();
@@ -388,7 +450,10 @@ fn ui(
     settings.insets.left = left;
     settings.insets.right = right;
 
-    if let Some(e) = experiment.as_deref() {
+    if let Some(e) = experiment
+        .as_deref()
+        .filter(|_| views.hide_overlays.is_none())
+    {
         pane_overlays(
             &ctx,
             e,
@@ -1097,6 +1162,25 @@ fn keyboard_shortcuts(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stale_textures_are_released() {
+        let (a, b) = (
+            AssetId::<Image>::invalid(),
+            AssetId::<Image>::from(bevy::asset::uuid::Uuid::from_u128(7)),
+        );
+        let mut t = EguiImageTextures::default();
+        t.get_or_add(a, || egui::TextureId::User(1));
+        t.get_or_add(b, || egui::TextureId::User(2));
+        // Re-adding an existing image reuses its texture.
+        assert_eq!(
+            t.get_or_add(a, || egui::TextureId::User(99)),
+            egui::TextureId::User(1)
+        );
+        let stale = t.take_stale(|id| id == a);
+        assert_eq!(stale, vec![b]);
+        assert_eq!(t.len(), 1);
+    }
 
     #[test]
     fn loss_switch_picks_matching_model_and_keeps_settings() {

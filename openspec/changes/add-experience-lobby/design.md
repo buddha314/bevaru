@@ -99,14 +99,17 @@ An `UnloadExperiment` message removes everything an experiment created:
 Leaving must return the app to its lobby baseline (spec: "Clean-up on leave"). The approach:
 - **One exit path:** every way out (Back, `Esc`, load failure, switching, quitting) goes through the same `leave_experience` function. It triggers `ExperienceStopped`, sends `UnloadExperiment`, despawns `ExperienceEntity` and `SceneEntity`, clears `ActiveExperience`, and bumps a **session counter**.
 - **Late results:** async work captures the session counter when spawned, and any result from an older session is discarded on arrival. This covers experiment loads, sweep solutions, and chart renders, which can't be interrupted once their synchronous work has started.
+  - **As built:** no counter was needed. Results reach the app only through the `Task` handles held in `ExperimentLoader`, `Sweep`, and each `ChartSlot`. Unloading drops those handles, so a late result has nowhere to arrive. Work already running finishes in the background and is discarded. The "leaving during a load" and "leaving mid-sweep" tests cover this.
 - **Assets:** per-experiment meshes, materials, and region images are owned only by entity components, so despawning frees them. Experiment-specific images held in resources are removed explicitly: today that's the MNIST weight images in `WeightImages`. The shared chart images are kept and reset to blank, so their count stays constant.
-- **Leaks this change corrects** (also listed under "Known issues" in the README):
+- **Leaks this change corrects** (listed under "Known issues" in the README until this change landed):
   1. *Existing:* the control panel's egui texture registrations are never released. `ui` keeps a grow-only `Local<HashMap<AssetId<Image>, TextureId>>` and never calls `remove_image`. Registrations are weak, so the image memory is freed, but the map entries and bevy_egui texture IDs accumulate: one per pane each time the MNIST weight images are recreated.
   2. *Would appear with unloading:* `update_weight_images` only runs while an `Experiment` exists. Today, loading a non-image experiment clears the weight images, but after an unload nothing would, so they would outlive the experiment.
   3. *Existing, harmless:* an interrupted MNIST download can leave a `*.partial` file. It's never read as data, and a successful download overwrites it.
 - **egui textures:** the control panel's texture map currently only grows (`src/controls.rs`). It becomes a resource that releases every texture with `EguiContexts::remove_image` when its image goes away, keeping only the long-lived chart and thumbnail textures.
 - **Quit:** an `AppExit` observer calls `leave_experience` before shutdown.
 - **Partial downloads:** the MNIST loader deletes stale `*.partial` files before downloading.
+- **As built, ordering:** every per-experiment clean-up handler runs in `PreUpdate`, in the same frame the `Experiment` resource is removed. Running playback's handler later let the outgoing experiment refill the pane views for one frame, which the tests caught.
+- **As built, resource slots:** Bevy 0.19 stores each resource type in an entity tagged `IsResource`, which it keeps and reuses after the resource is removed. The leak test therefore counts entities `Without<IsResource>`. The slots are bookkeeping, one per resource type, and don't grow.
 - **Proof:** a headless test enters and leaves every available experience ten times. It compares entity, `Assets<Mesh>`, `Assets<StandardMaterial>`, `Assets<Image>`, and egui texture counts against the lobby baseline, and asserts that sweep, load, and chart-render tasks are empty.
 
 ### 7. Thumbnails: dedicated PNGs, embedded
@@ -115,9 +118,11 @@ Leaving must return the app to its lobby baseline (spec: "Clean-up on leave"). T
 - **Third-party thumbnails:** `Thumbnail::Embedded(&'static [u8])` or `Thumbnail::Asset(&'static str)`, loaded through the `AssetServer`. `None` gets a placeholder with the title on a tinted card.
 - **Why PNG, not reusing the README WebPs**: PNG decoding is already enabled through Bevy's `2d`/`3d` features, so this needs no new feature or dependency. The README images are full-window captures (panels included), which make poor 480 px thumbnails; a scene-only crop reads much better.
 - **Why embedded**: the spec requires thumbnails to work from any working directory, and `include_bytes!` makes the binary self-contained. The cost is about 50–120 KB per image.
+- **As built, framing:** a fixed 16:9 centre-crop cut across side-by-side panes. Instead, the capture hides UI overlays (`HideOverlays`), trims the plain background around the content, and fits the result into 480 × 270 with padding. Cropping and scaling use the `image` crate directly. It's already in the dependency tree via `bevy_image`, so nothing new is compiled. The five built-ins total about 330 KB.
 - **Regeneration:** the existing `DevScreenshot` support, plus a `--thumbnail` mode that captures only the scene viewport. That mode reuses the pane rect, so it doesn't depend on panel widths. A script (`scripts/thumbnails.sh`) runs every registered id and writes `assets/thumbnails/`. It is documented in the README.
 
 ### 8. Lobby UI in egui
+**As built:** the lobby logic lives in `LobbyPlugin`, which runs headless and is tested there. The egui screens are in `lobby::ui::LobbyUiPlugin`, added only when a renderer is present. Category groups are laid out in rows, measured against the panel width, because egui's wrapped layouts can't wrap a group they haven't laid out yet. The app builder shared by the binary and the examples is `bevaru::app::windowed_app`, and it also titles the window after the running experience.
 - **Layout:** an `egui::CentralPanel` with category headings, each followed by a responsive wrapped grid of cards.
 - **Card contents:** thumbnail, title, summary, requirement note, and the last error if a load failed.
 - **States:** a disabled card is drawn dimmed and is not clickable.

@@ -42,6 +42,8 @@ bevaru-core = { path = "crates/bevaru-core", version = "0.1.0" }
 bevy = { version = "=0.19.1", default-features = false, features = ["2d", "3d"] }
 bevy_egui = { version = "=0.42.0", default-features = false, features = ["render", "default_fonts", "manage_clipboard"] }
 ruviz = "=0.14.2"
+# Already in the tree via bevy_image; used directly to crop and scale thumbnails.
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 # Bevy and the linear algebra are unusably slow unoptimized; keep our own
 # crates fast to compile but optimize dependencies.

@@ -238,7 +238,9 @@ impl MnistLoader {
         {
             return Ok(bytes);
         }
-        // A corrupt cache entry is replaced, never trusted.
+        // A corrupt cache entry is replaced, never trusted. A partial file
+        // from an interrupted download is never read; clear it up front.
+        let _ = fs::remove_file(path.with_extension("partial"));
         let mut last_err = None;
         for mirror in &self.mirrors {
             let url = format!("{mirror}{}", file.name);
@@ -469,6 +471,27 @@ mod tests {
             assert_eq!(i % 10, l);
         }
         assert_eq!(d, loader.load(&opts).unwrap());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn stale_partial_download_is_removed() {
+        let dir = temp_dir("partial");
+        fs::create_dir_all(&dir).unwrap();
+        let partial = dir.join(FILES[1].name).with_extension("partial");
+        fs::write(&partial, b"half a file").unwrap();
+        let loader = fake_loader(&dir, fake_files(10), Arc::new(AtomicUsize::new(0)));
+        let opts = MnistOptions {
+            max_samples: None,
+            ..Default::default()
+        };
+        loader.load(&opts).unwrap();
+        let leftovers: Vec<_> = fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().is_some_and(|x| x == "partial"))
+            .collect();
+        assert!(leftovers.is_empty(), "{leftovers:?}");
         let _ = fs::remove_dir_all(&dir);
     }
 

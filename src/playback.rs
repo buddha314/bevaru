@@ -5,7 +5,7 @@ use bevaru_core::{LinearModel, LossKind, ModelKind, Snapshot, Status, Trainer, T
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task as BevyTask, futures::check_ready};
 
-use crate::experiment::Experiment;
+use crate::experiment::{Experiment, UnloadExperiment};
 use crate::geometry::Boundary;
 
 /// Training playback, shared by every pane so comparisons stay in lockstep.
@@ -261,6 +261,10 @@ impl Plugin for PlaybackPlugin {
             .init_resource::<PaneViews>()
             .add_message::<PlaybackCommand>()
             .add_message::<SweepCommand>()
+            .add_message::<UnloadExperiment>()
+            // PreUpdate, alongside the experiment's removal: run any later and
+            // the outgoing experiment would refill the views for one frame.
+            .add_systems(PreUpdate, unload_playback)
             .add_systems(
                 Update,
                 (
@@ -277,6 +281,31 @@ impl Plugin for PlaybackPlugin {
                     .run_if(resource_exists::<Experiment>),
             );
     }
+}
+
+/// Forget everything tied to the unloaded experiment. Resetting [`Sweep`]
+/// drops its tasks, which cancels them. User preferences (speed,
+/// transition time, sweep settings) are kept.
+fn unload_playback(
+    mut requests: MessageReader<UnloadExperiment>,
+    mut playback: ResMut<Playback>,
+    mut sweep: ResMut<Sweep>,
+    mut views: ResMut<PaneViews>,
+) {
+    if requests.read().count() == 0 {
+        return;
+    }
+    *playback = Playback {
+        steps_per_second: playback.steps_per_second,
+        transition_secs: playback.transition_secs,
+        ..default()
+    };
+    *sweep = Sweep {
+        spec: sweep.spec.clone(),
+        secs_per_value: sweep.secs_per_value,
+        ..default()
+    };
+    views.0.clear();
 }
 
 fn on_new_experiment(

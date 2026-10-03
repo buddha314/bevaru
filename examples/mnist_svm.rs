@@ -10,35 +10,9 @@
 //! cargo run --release --features mnist --example mnist_svm
 //! ```
 
+#[path = "shared/mod.rs"]
 mod shared;
 
-use bevaru::core::TrainerConfig;
-use bevaru::{
-    BevaruPlugin, DatasetChoice, Experiment, ExperimentSpec, PlaybackCommand, StartupExperiment,
-};
-use bevy::prelude::*;
-
 fn main() {
-    let spec = ExperimentSpec::new(
-        DatasetChoice::Mnist {
-            positive: 3,
-            negative: 8,
-            samples: 2000,
-        },
-        TrainerConfig {
-            max_steps: 600,
-            ..TrainerConfig::svm(10.0).unwrap()
-        },
-    );
-
-    App::new()
-        .add_plugins(shared::window("bevaru — MNIST 3 vs 8"))
-        .insert_resource(StartupExperiment(spec))
-        .add_plugins((BevaruPlugin, shared::DevScreenshot))
-        .add_systems(Update, play.run_if(resource_added::<Experiment>))
-        .run();
-}
-
-fn play(mut playback: MessageWriter<PlaybackCommand>) {
-    playback.write(PlaybackCommand::Play);
+    shared::run_experience("mnist-svm");
 }
