@@ -5,6 +5,7 @@
 //! loads with [`StartupExperiment`]; the math lives in [`bevaru_core`],
 //! re-exported as [`core`].
 
+pub mod agent;
 pub mod app;
 pub mod capture;
 pub mod charts;
@@ -15,6 +16,8 @@ pub mod geometry;
 pub mod lobby;
 pub mod loss_surface;
 pub mod playback;
+#[cfg(feature = "remote")]
+pub mod remote;
 pub mod scene;
 
 pub use bevaru_core as core;

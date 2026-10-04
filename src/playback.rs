@@ -72,6 +72,21 @@ impl SweepParam {
         SweepParam::LearningRate,
     ];
 
+    /// Stable kebab-case identifier for APIs and tools.
+    pub fn id(self) -> &'static str {
+        match self {
+            SweepParam::C => "c",
+            SweepParam::Lambda => "lambda",
+            SweepParam::HuberDelta => "huber-delta",
+            SweepParam::Margin => "margin",
+            SweepParam::LearningRate => "learning-rate",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|p| p.id() == id)
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             SweepParam::C => "C",
@@ -79,6 +94,17 @@ impl SweepParam {
             SweepParam::HuberDelta => "Huber δ",
             SweepParam::Margin => "Hinge margin",
             SweepParam::LearningRate => "Learning rate",
+        }
+    }
+
+    /// A sensible default sweep range: `(from, to, log)`.
+    pub fn default_range(self) -> (f64, f64, bool) {
+        match self {
+            SweepParam::C => (0.01, 100.0, true),
+            SweepParam::Lambda => (1e-4, 1.0, true),
+            SweepParam::HuberDelta => (0.1, 3.0, true),
+            SweepParam::Margin => (0.25, 2.5, false),
+            SweepParam::LearningRate => (1e-3, 0.5, true),
         }
     }
 
@@ -790,6 +816,13 @@ mod tests {
         }
         let view = &app.world().resource::<PaneViews>().0[0];
         assert_eq!(view.shown, view.target, "settles within ~0.3 s");
+    }
+
+    #[test]
+    fn sweep_param_ids_round_trip() {
+        for p in SweepParam::ALL {
+            assert_eq!(SweepParam::from_id(p.id()), Some(p));
+        }
     }
 
     #[test]

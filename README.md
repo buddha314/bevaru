@@ -110,6 +110,17 @@ BEVARU_SCREENSHOT=iris.png BEVARU_SCREENSHOT_AFTER=8 cargo run --release -- iris
 
 ![MNIST 3 vs 8: the boundary's slice through the top two principal components, and the learned weights](docs/images/mnist.webp)
 
+## For agents
+
+bevaru is built to be used by AI agents writing applications:
+- **[`llms.txt`](llms.txt):** the index of docs written for agents. Start there.
+- **[`docs/agents/capabilities.md`](docs/agents/capabilities.md) and [`.json`](docs/agents/capabilities.json):** every loss, model, dataset, sweep parameter, experience and control message, with ids, valid ranges and JSON Schemas. They're generated from the code (`cargo run -p bevaru-mcp -- gen-docs`), and a test fails if they fall out of date.
+- **[`AGENTS.md`](AGENTS.md):** instructions for coding agents working on bevaru itself.
+
+- **[`bevaru-mcp`](docs/agents/mcp.md):** an MCP server, so agents can evaluate losses, train and sweep models, and render charts without writing code. Install it with `cargo install --git https://github.com/buddha314/bevaru bevaru-mcp`, then add it to your MCP client (`claude mcp add bevaru -- bevaru-mcp`).
+
+- **Driving a running window:** start the app with `cargo run --features remote -- --remote`, and agents can open experiences, control playback and sweeps, and read the state, through `bevaru-mcp --app` or plain JSON-RPC. See [the recipe](docs/agents/recipes/drive-a-running-app.md).
+
 ## Use it in your own app
 
 ```toml

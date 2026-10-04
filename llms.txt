@@ -1,0 +1,24 @@
+# bevaru
+
+> bevaru is a Rust library for interactive, animated machine-learning visualizations in the Bevy game engine. It visualizes loss functions (MSE, MAE, Huber, hinge, squared hinge, logistic, 0-1), linear models (linear regression, linear SVM, logistic regression), SVM margins and support vectors, regression residuals, and hyperparameter sweeps, on synthetic data, Iris, and MNIST. Applications add `BevaruPlugin` to a Bevy app and either open the built-in lobby of experiences or load their own experiments; the math is also usable without Bevy through `bevaru-core`.
+
+Everything an application can use is listed in a machine-readable manifest generated from the code, so it is always current.
+
+## Docs
+
+- [Agent guide](docs/agents/guide.md): how to build an application with bevaru: the plugin, experiences and experiments, driving it with messages, running headless.
+- [Capability reference](docs/agents/capabilities.md): every loss, model, dataset, view, sweep parameter, experience, control message, and agent tool, with ids and valid ranges.
+- [Capability manifest](docs/agents/capabilities.json): the same as JSON, with JSON Schemas for every request type.
+
+- [MCP server](docs/agents/mcp.md): install `bevaru-mcp`, connect it to an MCP client, and call bevaru's tools without writing code.
+
+## Recipes
+
+- [Train a model headlessly](docs/agents/recipes/train-headlessly.md): `bevaru-core` only, no window.
+- [Add an experience to the lobby](docs/agents/recipes/add-an-experience.md): an experiment experience and a custom one.
+- [Drive a running app](docs/agents/recipes/drive-a-running-app.md): control a visible window from an MCP client or over HTTP (`--remote`).
+
+## Optional
+
+- [README](README.md): running the app, the lobby, screenshots.
+- [Instructions for coding agents working on bevaru itself](AGENTS.md)

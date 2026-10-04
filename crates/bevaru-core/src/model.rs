@@ -60,6 +60,19 @@ impl ModelKind {
         ModelKind::LogisticRegression,
     ];
 
+    /// Stable kebab-case identifier for APIs and tools.
+    pub fn id(self) -> &'static str {
+        match self {
+            ModelKind::LinearRegression => "linear-regression",
+            ModelKind::Svm => "svm",
+            ModelKind::LogisticRegression => "logistic-regression",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|m| m.id() == id)
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             ModelKind::LinearRegression => "Linear regression",
@@ -646,6 +659,13 @@ mod tests {
 
     fn separable() -> TrainingData {
         blobs(60, true, 11).training_data().unwrap()
+    }
+
+    #[test]
+    fn model_ids_round_trip() {
+        for m in ModelKind::ALL {
+            assert_eq!(ModelKind::from_id(m.id()), Some(m));
+        }
     }
 
     #[test]

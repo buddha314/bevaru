@@ -26,7 +26,7 @@ use crate::scene::{PaneCamera, SceneEntity, ScenePlugin};
 
 /// Everything `DefaultPlugins` + `BevaruPlugin` + `LobbyPlugin` would add,
 /// minus the window, renderer, and egui.
-fn headless(lobby: Option<LobbyPlugin>) -> App {
+pub(crate) fn headless(lobby: Option<LobbyPlugin>) -> App {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
@@ -62,7 +62,7 @@ fn lobby_app() -> App {
 }
 
 /// Step until `done` holds (async loads and renders need wall-clock time).
-fn run_until(app: &mut App, what: &str, done: impl Fn(&World) -> bool) {
+pub(crate) fn run_until(app: &mut App, what: &str, done: impl Fn(&World) -> bool) {
     // Generous wall-clock limit: under a parallel test run, background loads
     // share the task pool with every other test.
     let deadline = std::time::Instant::now() + Duration::from_secs(60);
@@ -424,4 +424,45 @@ fn escape_returns_to_the_lobby() {
         .press(KeyCode::Escape);
     frames(&mut app, 3);
     assert_clean(&mut app);
+}
+
+#[test]
+fn a_load_that_finishes_before_the_screen_changes_still_starts() {
+    // Regression (seen in CI): the load task can finish in the same
+    // PreUpdate that polls it, before the lobby's requested `Loading`
+    // transition has applied. The finished experiment must still be picked
+    // up and its on-loaded actions run, not ignored.
+    let mut app = lobby_app();
+    frames(&mut app, 2);
+    app.world_mut()
+        .write_message(EnterExperience("loss-curves"));
+    app.update(); // the lobby handles the request: NextState = Loading
+    assert_eq!(screen(&app), AppScreen::Lobby, "transition not applied yet");
+
+    // Run only PreUpdate: it spawns the load, then (once the task is done)
+    // finishes it, all before StateTransition gets a chance to run.
+    app.world_mut().run_schedule(PreUpdate);
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    while !app.world().contains_resource::<Experiment>() {
+        assert!(std::time::Instant::now() < deadline, "load never finished");
+        std::thread::sleep(Duration::from_millis(5));
+        app.world_mut().run_schedule(PreUpdate);
+    }
+    assert_eq!(
+        screen(&app),
+        AppScreen::Lobby,
+        "still before the transition"
+    );
+
+    frames(&mut app, 3);
+    assert_eq!(
+        screen(&app),
+        AppScreen::Running,
+        "stuck on the loading screen"
+    );
+    assert_eq!(
+        app.world().resource::<ChartSettings>().overlay.len(),
+        7,
+        "on-loaded actions ran"
+    );
 }
