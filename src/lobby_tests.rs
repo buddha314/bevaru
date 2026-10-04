@@ -16,6 +16,7 @@ use crate::SigmoidPlotPlugin;
 use crate::charts::{ChartSettings, Charts, ChartsPlugin, WeightImages};
 use crate::experiences::loss_shapes::{ShapeChart, ShapeControls, ShapeSampling};
 use crate::experiences::loss_surface::{ObjectiveControls, ObjectiveSurfaceState};
+use crate::experiences::perceptron::{PerceptronControls, PerceptronScene, SlideView};
 use crate::experiences::sigmoid::{SigmoidExperiencePlugin, SigmoidRefresh, SigmoidSprite};
 use crate::experiences::{
     Experience, ExperienceEntity, ExperienceKind, RegisterExperience, Requirement,
@@ -151,6 +152,18 @@ fn assert_clean(app: &mut App) {
     assert!(!app.world().contains_resource::<ShapeChart>());
     assert!(!app.world().contains_resource::<ObjectiveSurfaceState>());
     assert!(!app.world().contains_resource::<ObjectiveControls>());
+    assert!(!app.world().contains_resource::<PerceptronScene>());
+    assert!(!app.world().contains_resource::<PerceptronControls>());
+    assert!(!app.world().contains_resource::<SlideView>());
+    assert!(
+        !app.world()
+            .contains_resource::<crate::diagram::DiagramAssets>()
+    );
+    assert!(
+        !app.world()
+            .contains_resource::<crate::capture::HideOverlays>()
+    );
+    assert_eq!(count::<With<crate::diagram::DiagramRoot>>(app), 0);
     assert_eq!(count::<With<OrbitRig>>(app), 0);
 }
 
@@ -390,6 +403,7 @@ fn repeated_round_trips_do_not_grow_the_app() {
         .collect();
     assert!(ids.len() >= 4);
     assert!(ids.contains(&"loss-shapes") && ids.contains(&"loss-surface"));
+    assert!(ids.contains(&"perceptron"));
     for _ in 0..10 {
         for &id in &ids {
             enter(&mut app, id);
@@ -562,6 +576,68 @@ fn loss_surface_opens_and_follows_the_controls() {
     let state = app.world().resource::<ObjectiveSurfaceState>();
     assert_eq!(state.shown.loss, bevaru_core::LossKind::Logistic);
     assert!(state.error.is_none() && state.max != before);
+    leave_now(&mut app);
+    assert_clean(&mut app);
+}
+
+#[test]
+fn perceptron_follows_its_controls_and_toggles_slide_view() {
+    let mut app = lobby_app();
+    app.init_resource::<ButtonInput<KeyCode>>();
+    enter(&mut app, "perceptron");
+    frames(&mut app, 2);
+    let first = app.world().resource::<PerceptronScene>().root;
+    assert_eq!(
+        app.world()
+            .resource::<PerceptronScene>()
+            .diagram
+            .nodes
+            .len(),
+        7
+    );
+    assert_eq!(count::<With<crate::diagram::DiagramRoot>>(&mut app), 1);
+
+    // A weight flips sign: the diagram is rebuilt in place, once.
+    app.world_mut().resource_mut::<PerceptronControls>().weights[0] = -1.2;
+    frames(&mut app, 2);
+    let scene = app.world().resource::<PerceptronScene>();
+    assert_ne!(scene.root, first);
+    let w1 = scene.diagram.edges.iter().find(|e| e.id == "w1").unwrap();
+    assert_eq!(w1.weight, Some(-1.2));
+    assert_eq!(count::<With<crate::diagram::DiagramRoot>>(&mut app), 1);
+
+    // H hides the controls (via HideOverlays) and frames for slides; H again restores.
+    let press_h = |app: &mut App| {
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.release(KeyCode::KeyH);
+        keys.clear();
+        keys.press(KeyCode::KeyH);
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .clear();
+        app.update();
+    };
+    press_h(&mut app);
+    assert!(app.world().resource::<SlideView>().on);
+    assert!(
+        app.world()
+            .contains_resource::<crate::capture::HideOverlays>()
+    );
+    let mut rigs = app
+        .world_mut()
+        .query_filtered::<&OrbitRig, With<ExperienceEntity>>();
+    let rig = rigs.single(app.world()).unwrap();
+    assert_eq!(rig.home, crate::experiences::perceptron::SLIDE);
+    press_h(&mut app);
+    assert!(!app.world().resource::<SlideView>().on);
+    assert!(
+        !app.world()
+            .contains_resource::<crate::capture::HideOverlays>()
+    );
+
+    // Leaving from slide view removes what slide view added.
+    press_h(&mut app);
     leave_now(&mut app);
     assert_clean(&mut app);
 }

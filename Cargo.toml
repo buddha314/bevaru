@@ -27,7 +27,11 @@ default-run = "bevaru"
 workspace = true
 
 [features]
+default = ["math"]
 mnist = ["bevaru-core/mnist"]
+# Typeset formulas (diagram tooltips) with Typst through ruviz. Adds about
+# 32 MB, mostly embedded fonts; without it, formulas show as plain text.
+math = ["ruviz/typst-math"]
 # Drive a running app over Bevy Remote Protocol (localhost); see `bevaru::remote`.
 remote = ["bevy/bevy_remote"]
 

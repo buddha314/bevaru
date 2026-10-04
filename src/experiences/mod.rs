@@ -35,6 +35,7 @@ mod builtin;
 pub mod layout;
 pub mod loss_shapes;
 pub mod loss_surface;
+pub mod perceptron;
 pub mod sigmoid;
 
 use std::fmt;
@@ -267,7 +268,7 @@ impl Plugin for ExperiencesPlugin {
             .add_observer(despawn_experience_entities);
         builtin::register(app);
         app.add_plugins(layout::SideInsetsPlugin);
-        // The 3-D surfaces need mesh and material assets and gizmos, but no
+        // The 3-D experiences need mesh and material assets and gizmos, but no
         // renderer, so headless apps with those run them too (the lobby tests
         // do). Apps without them still list them.
         let world = app.world();
@@ -278,6 +279,7 @@ impl Plugin for ExperiencesPlugin {
             app.add_plugins((
                 loss_shapes::LossShapesExperiencePlugin,
                 loss_surface::LossSurfaceExperiencePlugin,
+                perceptron::PerceptronExperiencePlugin,
             ));
         }
         // The sigmoid experience draws a sprite, so it needs a renderer;
@@ -331,6 +333,7 @@ mod tests {
             "mnist-svm",
             "loss-shapes",
             "loss-surface",
+            "perceptron",
             "sigmoid",
         ] {
             let e = r.get(id).unwrap_or_else(|| panic!("{id} missing"));

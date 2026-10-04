@@ -13,7 +13,8 @@ workspace = true
 mnist = ["bevaru/mnist"]
 
 [dependencies]
-bevaru = { path = "../..", version = "0.1.0" }
+# No default features: the server needs no formula typesetting (`math`).
+bevaru = { path = "../..", version = "0.1.0", default-features = false }
 rmcp = { version = "3.5", features = ["server", "transport-io", "macros"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std"] }
 serde = { version = "1", features = ["derive"] }

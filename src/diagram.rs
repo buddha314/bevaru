@@ -1,0 +1,1227 @@
+//! Presentation diagrams: a small declarative model (nodes, edges, groups)
+//! rendered in 3-D from Bevy's built-in primitives, and projected to 2-D
+//! slide coordinates.
+//!
+//! Bevaru adds only composition here. Every mesh is a Bevy primitive
+//! (`Capsule3d`, `Cylinder`, `Cone`, and `Extrusion<Capsule2d>`); this module
+//! picks primitives and places them with transforms, and never generates
+//! vertices itself. Nodes are round tablets: the unit capsule pointed at the
+//! camera and flattened, so each is a circle with domed faces, like a pill (see `docs/presentation/geometry.md`). Nodes, tubes, and
+//! arrowheads share one unit mesh per kind, whatever the diagram's size.
+
+use std::collections::HashSet;
+use std::fmt;
+
+use bevy::camera::{CameraProjection, PerspectiveProjection};
+use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
+
+use crate::formula::{Formula, typst_color};
+use crate::orbit::OrbitView;
+
+// ---------------------------------------------------------------------------
+// The model
+
+/// What a node stands for; it sets the node's colour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NodeRole {
+    Input,
+    Bias,
+    Sum,
+    Activation,
+    Output,
+}
+
+impl NodeRole {
+    pub const ALL: [NodeRole; 5] = [
+        NodeRole::Input,
+        NodeRole::Bias,
+        NodeRole::Sum,
+        NodeRole::Activation,
+        NodeRole::Output,
+    ];
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Node {
+    pub id: String,
+    pub label: String,
+    pub role: NodeRole,
+    /// World position (Z is up).
+    pub position: [f32; 3],
+    /// The node's radius. Nodes are round tablets facing the camera: a
+    /// circle of this radius in the diagram's plane, with a short straight
+    /// edge band (`PILL_BAND`) and domed faces (`PILL_DOME`).
+    pub radius: f32,
+    /// Shown when the pointer hovers the node.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formula: Option<Formula>,
+}
+
+/// The unit capsule's straight half-length, before flattening: it becomes
+/// the tablet's edge band.
+pub const PILL_BAND: f32 = 0.4;
+/// How much the capsule is flattened along its axis (front to back), as a
+/// fraction of the radius: the hemispherical ends become shallow domes.
+pub const PILL_DOME: f32 = 0.35;
+
+impl Node {
+    pub fn pos(&self) -> Vec3 {
+        Vec3::from_array(self.position)
+    }
+
+    /// Half extents: along the flow (X), front to back (Y), and up (Z).
+    /// The outline in the diagram's plane is a circle of the node's radius.
+    pub fn half_size(&self) -> Vec3 {
+        let r = self.radius;
+        Vec3::new(r, r * PILL_DOME * (1.0 + PILL_BAND), r)
+    }
+
+    /// How far from the centre the tablet's surface is along `dir` (unit).
+    /// Exact: in the tablet's own units it is a capsule of radius 1 whose
+    /// axis runs ±`PILL_BAND` front to back (Y). In the diagram's plane
+    /// this is the radius, whatever the direction.
+    pub fn surface_distance(&self, dir: Vec3) -> f32 {
+        let r = self.radius;
+        // Direction per world unit, in unit-capsule coordinates.
+        let u = Vec3::new(dir.x / r, dir.y / (r * PILL_DOME), dir.z / r);
+        let along = u.y.abs();
+        let perp = u.x.hypot(u.z);
+        let l = PILL_BAND;
+        if perp < 1e-9 {
+            return (l + 1.0) / along.max(1e-9);
+        }
+        // On the straight side, or else on a hemispherical end.
+        let side = 1.0 / perp;
+        if along * side <= l {
+            return side;
+        }
+        let a = along * along + perp * perp;
+        let b = l * along;
+        (b + (b * b - a * (l * l - 1.0)).max(0.0).sqrt()) / a
+    }
+
+    /// The shared unit capsule (radius 1, axis along Y) placed as this node.
+    /// Its axis already points front to back, so it is only scaled: by the
+    /// radius in the diagram's plane, and flattened along the axis.
+    pub fn pill_transform(&self) -> Transform {
+        let r = self.radius;
+        Transform::from_translation(self.pos()).with_scale(Vec3::new(r, r * PILL_DOME, r))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Edge {
+    pub id: String,
+    pub from: String,
+    pub to: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// Draw an arrowhead at `to`.
+    #[serde(default)]
+    pub arrow: bool,
+    /// Shown when the pointer hovers the edge.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formula: Option<Formula>,
+}
+
+/// Nodes drawn on one backdrop, such as a layer.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Group {
+    pub id: String,
+    pub label: String,
+    pub members: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Diagram {
+    pub nodes: Vec<Node>,
+    pub edges: Vec<Edge>,
+    #[serde(default)]
+    pub groups: Vec<Group>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DiagramError {
+    DuplicateId(String),
+    MissingNode { edge: String, node: String },
+    MissingMember { group: String, node: String },
+}
+
+impl fmt::Display for DiagramError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DiagramError::DuplicateId(id) => write!(f, "id {id:?} is used more than once"),
+            DiagramError::MissingNode { edge, node } => {
+                write!(f, "edge {edge:?} refers to missing node {node:?}")
+            }
+            DiagramError::MissingMember { group, node } => {
+                write!(f, "group {group:?} refers to missing node {node:?}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for DiagramError {}
+
+/// The perceptron's activation function.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Activation {
+    Step,
+    #[default]
+    Sigmoid,
+}
+
+impl Activation {
+    pub fn symbol(self) -> &'static str {
+        match self {
+            Activation::Step => "step",
+            Activation::Sigmoid => "σ",
+        }
+    }
+}
+
+/// Format a weight for a label: two decimals, without a trailing zero.
+fn weight_text(w: f64) -> String {
+    let s = format!("{w:.2}");
+    let s = s.trim_end_matches('0').trim_end_matches('.');
+    match s {
+        "-0" => "0".into(),
+        s => s.replace('-', "−"),
+    }
+}
+
+/// A weight as a Typst math term coloured by its sign, like its tube:
+/// `#text(fill: …)[$0.8$]`.
+fn typst_weight(w: f64) -> String {
+    let color = match sign(w) {
+        Sign::Positive => POSITIVE,
+        Sign::Negative => NEGATIVE,
+        Sign::Zero => NEUTRAL,
+    };
+    let value = weight_text(w).replace('−', "-");
+    format!("#text(fill: {})[${value}$]", typst_color(color))
+}
+
+/// The perceptron's formulas, by node or edge id, with the current values.
+pub fn perceptron_formulas(
+    weights: [f64; 3],
+    bias: f64,
+    activation: Activation,
+) -> std::collections::HashMap<&'static str, Formula> {
+    let subs = ["₁", "₂", "₃"];
+    // z = 0.8·x₁ − 0.5·x₂ + 0.3·x₃ + 0.1. A negative term's own (coloured)
+    // minus sign is its operator; other terms after the first get a "+".
+    let terms: Vec<(f64, String, String)> = weights
+        .iter()
+        .enumerate()
+        .map(|(i, &w)| (w, format!("x_{}", i + 1), format!("·x{}", subs[i])))
+        .chain([(bias, String::new(), String::new())])
+        .collect();
+    let (mut typst_terms, mut text_terms) = (String::new(), String::new());
+    for (i, (w, typst_var, text_var)) in terms.iter().enumerate() {
+        let plus = if i > 0 && *w >= 0.0 { "+ " } else { "" };
+        typst_terms.push_str(&format!("{plus}{} {typst_var} ", typst_weight(*w)));
+        let text_op = match (i, *w < 0.0) {
+            (0, _) => "",
+            (_, true) => " − ",
+            (_, false) => " + ",
+        };
+        let shown = if i > 0 { w.abs() } else { *w };
+        text_terms.push_str(&format!("{text_op}{}{text_var}", weight_text(shown)));
+    }
+    let sum = Formula::new(
+        format!("$ z = sum_(i=1)^3 w_i x_i + b = {}$", typst_terms),
+        format!("z = Σᵢ wᵢxᵢ + b = {text_terms}"),
+    );
+    let (act, out) = match activation {
+        Activation::Sigmoid => (
+            Formula::new("$ sigma(z) = 1 / (1 + e^(-z)) $", "σ(z) = 1 / (1 + e^(−z))"),
+            Formula::new(
+                "$ hat(y) = sigma(bold(w)^top bold(x) + b) $",
+                "ŷ = σ(wᵀx + b)",
+            ),
+        ),
+        Activation::Step => (
+            Formula::new(
+                r#"$ H(z) = cases(1 & "if" z >= 0, 0 & "if" z < 0) $"#,
+                "H(z) = 1 if z ≥ 0, else 0",
+            ),
+            Formula::new("$ hat(y) = H(bold(w)^top bold(x) + b) $", "ŷ = H(wᵀx + b)"),
+        ),
+    };
+    let f_symbol = match activation {
+        Activation::Sigmoid => "sigma",
+        Activation::Step => "H",
+    };
+    let f_text = match activation {
+        Activation::Sigmoid => "σ",
+        Activation::Step => "H",
+    };
+    let mut map = std::collections::HashMap::new();
+    for (i, &w) in weights.iter().enumerate() {
+        let n = i + 1;
+        let id_node = ["x1", "x2", "x3"][i];
+        let id_edge = ["w1", "w2", "w3"][i];
+        map.insert(
+            id_node,
+            Formula::new(
+                format!(
+                    r#"$ "input" x_{n}, "contributing" w_{n} x_{n} = {} x_{n} $"#,
+                    typst_weight(w)
+                ),
+                format!(
+                    "input x{s}, contributing w{s}x{s} = {}·x{s}",
+                    weight_text(w),
+                    s = subs[i]
+                ),
+            ),
+        );
+        map.insert(
+            id_edge,
+            Formula::new(
+                format!("$ w_{n} = {} $", typst_weight(w)),
+                format!("w{} = {}", subs[i], weight_text(w)),
+            ),
+        );
+    }
+    map.insert(
+        "b",
+        Formula::new(
+            format!(
+                r#"$ "constant input" 1, "contributing" b = {} $"#,
+                typst_weight(bias)
+            ),
+            format!("constant input 1, contributing b = {}", weight_text(bias)),
+        ),
+    );
+    map.insert(
+        "wb",
+        Formula::new(
+            format!("$ b = {} $", typst_weight(bias)),
+            format!("b = {}", weight_text(bias)),
+        ),
+    );
+    map.insert("sum", sum);
+    map.insert(
+        "sum-act",
+        Formula::new("$ z = bold(w)^top bold(x) + b $", "z = wᵀx + b"),
+    );
+    map.insert(
+        "act-y",
+        Formula::new(
+            format!("$ hat(y) = {f_symbol}(z) $"),
+            format!("ŷ = {f_text}(z)"),
+        ),
+    );
+    map.insert("act", act);
+    map.insert("y", out);
+    map
+}
+
+impl Diagram {
+    pub fn node(&self, id: &str) -> Option<&Node> {
+        self.nodes.iter().find(|n| n.id == id)
+    }
+
+    /// Check that ids are unique and every reference resolves.
+    pub fn validate(&self) -> Result<(), DiagramError> {
+        let mut seen = HashSet::new();
+        let ids = self
+            .nodes
+            .iter()
+            .map(|n| &n.id)
+            .chain(self.edges.iter().map(|e| &e.id))
+            .chain(self.groups.iter().map(|g| &g.id));
+        for id in ids {
+            if !seen.insert(id.as_str()) {
+                return Err(DiagramError::DuplicateId(id.clone()));
+            }
+        }
+        for e in &self.edges {
+            for end in [&e.from, &e.to] {
+                if self.node(end).is_none() {
+                    return Err(DiagramError::MissingNode {
+                        edge: e.id.clone(),
+                        node: end.clone(),
+                    });
+                }
+            }
+        }
+        for g in &self.groups {
+            if let Some(m) = g.members.iter().find(|m| self.node(m).is_none()) {
+                return Err(DiagramError::MissingMember {
+                    group: g.id.clone(),
+                    node: m.clone(),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// A perceptron: inputs x₁–x₃ and a bias b feed a weighted sum Σ, then an
+    /// activation, then the output y. Laid out left to right in the X–Z
+    /// plane, so a camera on −Y sees it front-on.
+    pub fn perceptron(weights: [f64; 3], bias: f64, activation: Activation) -> Self {
+        let node = |id: &str, label: &str, role, x: f32, z: f32, radius: f32| Node {
+            id: id.into(),
+            label: label.into(),
+            role,
+            position: [x, 0.0, z],
+            radius,
+            formula: None,
+        };
+        let mut nodes = vec![
+            node("x1", "x₁", NodeRole::Input, -4.0, 2.4, 0.45),
+            node("x2", "x₂", NodeRole::Input, -4.0, 0.8, 0.45),
+            node("x3", "x₃", NodeRole::Input, -4.0, -0.8, 0.45),
+            node("b", "+1", NodeRole::Bias, -4.0, -2.4, 0.35),
+        ];
+        nodes.extend([
+            node("sum", "Σ", NodeRole::Sum, 0.0, 0.0, 0.7),
+            node(
+                "act",
+                activation.symbol(),
+                NodeRole::Activation,
+                2.8,
+                0.0,
+                0.55,
+            ),
+            node("y", "y", NodeRole::Output, 5.4, 0.0, 0.5),
+        ]);
+        let weighted = |id: &str, from: &str, name: &str, w: f64| Edge {
+            id: id.into(),
+            from: from.into(),
+            to: "sum".into(),
+            weight: Some(w),
+            label: Some(format!("{name} = {}", weight_text(w))),
+            arrow: false,
+            formula: None,
+        };
+        let arrow = |id: &str, from: &str, to: &str| Edge {
+            id: id.into(),
+            from: from.into(),
+            to: to.into(),
+            weight: None,
+            label: None,
+            arrow: true,
+            formula: None,
+        };
+        let mut diagram = Self {
+            nodes,
+            edges: vec![
+                weighted("w1", "x1", "w₁", weights[0]),
+                weighted("w2", "x2", "w₂", weights[1]),
+                weighted("w3", "x3", "w₃", weights[2]),
+                weighted("wb", "b", "b", bias),
+                arrow("sum-act", "sum", "act"),
+                arrow("act-y", "act", "y"),
+            ],
+            groups: vec![Group {
+                id: "inputs".into(),
+                label: "inputs".into(),
+                members: vec!["x1".into(), "x2".into(), "x3".into(), "b".into()],
+            }],
+        };
+        let formulas = perceptron_formulas(weights, bias, activation);
+        for n in &mut diagram.nodes {
+            n.formula = formulas.get(n.id.as_str()).cloned();
+        }
+        for e in &mut diagram.edges {
+            e.formula = formulas.get(e.id.as_str()).cloned();
+        }
+        diagram
+    }
+
+    /// Where each label sits in the world: node labels above their node,
+    /// edge labels above the edge's midpoint, group labels above the group.
+    pub fn label_anchors(&self) -> Vec<LabelAnchor> {
+        let mut out = Vec::new();
+        for n in &self.nodes {
+            let at = match n.role {
+                // Inputs read left of their node, like a slide's x₁ ○ ───.
+                NodeRole::Input | NodeRole::Bias => n.pos() - Vec3::X * (n.half_size().x + 0.45),
+                _ => n.pos() + Vec3::Z * (n.radius + 0.4),
+            };
+            out.push(LabelAnchor {
+                id: n.id.clone(),
+                text: n.label.clone(),
+                at,
+            });
+        }
+        for e in &self.edges {
+            let (Some(text), Some(p)) = (&e.label, self.placement(e)) else {
+                continue;
+            };
+            // Near the tail, where fanned-in edges are still apart.
+            let at = p.start.lerp(p.end, 0.3) + Vec3::Z * (p.radius + 0.3);
+            out.push(LabelAnchor {
+                id: e.id.clone(),
+                text: text.clone(),
+                at,
+            });
+        }
+        for g in &self.groups {
+            if let Some(b) = self.group_bounds(g) {
+                out.push(LabelAnchor {
+                    id: g.id.clone(),
+                    text: g.label.clone(),
+                    at: Vec3::new(b.center.x, b.center.y, b.max_z + 0.45),
+                });
+            }
+        }
+        out
+    }
+}
+
+/// A label's text and where it is anchored in the world.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LabelAnchor {
+    pub id: String,
+    pub text: String,
+    pub at: Vec3,
+}
+
+// ---------------------------------------------------------------------------
+// Placement: which primitive goes where (no mesh generation)
+
+/// Tube radius range for weights, in world units.
+pub const MIN_TUBE: f32 = 0.035;
+pub const MAX_TUBE: f32 = 0.16;
+/// |w| at which a tube reaches its maximum radius.
+pub const FULL_WEIGHT: f64 = 2.0;
+/// Radius of edges without a weight (the arrows Σ → σ → y).
+pub const PLAIN_TUBE: f32 = 0.06;
+
+/// The radius that encodes |w|: thin at 0, thickest from `FULL_WEIGHT` on.
+pub fn weight_radius(w: f64) -> f32 {
+    let t = (w.abs() / FULL_WEIGHT).min(1.0) as f32;
+    MIN_TUBE + (MAX_TUBE - MIN_TUBE) * t
+}
+
+/// A weight's sign, which picks its colour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sign {
+    Positive,
+    Negative,
+    Zero,
+}
+
+pub fn sign(w: f64) -> Sign {
+    if w > 1e-9 {
+        Sign::Positive
+    } else if w < -1e-9 {
+        Sign::Negative
+    } else {
+        Sign::Zero
+    }
+}
+
+/// Where an edge's tube runs, and its arrowhead if it has one.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EdgePlacement {
+    /// The tube runs from `start` (on the tail node's surface) to `end`.
+    pub start: Vec3,
+    pub end: Vec3,
+    pub radius: f32,
+    /// Cone base centre, tip (on the head node's surface), and base radius.
+    pub arrow: Option<(Vec3, Vec3, f32)>,
+}
+
+impl Diagram {
+    pub fn placement(&self, e: &Edge) -> Option<EdgePlacement> {
+        let (a, b) = (self.node(&e.from)?, self.node(&e.to)?);
+        let dir = (b.pos() - a.pos()).try_normalize()?;
+        let radius = e.weight.map_or(PLAIN_TUBE, weight_radius);
+        let start = a.pos() + dir * a.surface_distance(dir);
+        let tip = b.pos() - dir * b.surface_distance(-dir);
+        let arrow = e.arrow.then(|| {
+            let (len, width) = (0.45, (radius * 3.0).max(0.16));
+            (tip - dir * len, tip, width)
+        });
+        let end = arrow.map_or(tip, |(base, _, _)| base);
+        Some(EdgePlacement {
+            start,
+            end,
+            radius,
+            arrow,
+        })
+    }
+
+    fn group_bounds(&self, g: &Group) -> Option<GroupBounds> {
+        let members: Vec<&Node> = g.members.iter().filter_map(|m| self.node(m)).collect();
+        if members.is_empty() {
+            return None;
+        }
+        let pad = 0.35;
+        let lo = members
+            .iter()
+            .map(|n| n.pos() - n.half_size() - Vec3::splat(pad))
+            .reduce(Vec3::min)?;
+        let hi = members
+            .iter()
+            .map(|n| n.pos() + n.half_size() + Vec3::splat(pad))
+            .reduce(Vec3::max)?;
+        Some(GroupBounds {
+            center: (lo + hi) / 2.0,
+            half: (hi - lo) / 2.0,
+            max_z: hi.z,
+        })
+    }
+}
+
+struct GroupBounds {
+    center: Vec3,
+    half: Vec3,
+    max_z: f32,
+}
+
+/// A transform that turns the unit cylinder (radius 1, height 1, along Y)
+/// into a tube from `a` to `b` of `radius`.
+pub fn tube_transform(a: Vec3, b: Vec3, radius: f32) -> Transform {
+    let d = b - a;
+    Transform {
+        translation: (a + b) / 2.0,
+        rotation: Quat::from_rotation_arc(Vec3::Y, d.normalize_or(Vec3::Y)),
+        scale: Vec3::new(radius, d.length(), radius),
+    }
+}
+
+/// A transform that turns the unit cone (radius 1, height 1, tip at +Y) into
+/// an arrowhead from `base` to `tip`.
+pub fn cone_transform(base: Vec3, tip: Vec3, radius: f32) -> Transform {
+    tube_transform(base, tip, radius)
+}
+
+// ---------------------------------------------------------------------------
+// Rendering
+
+/// The shared unit meshes and the palette, created once per experience.
+#[derive(Resource, Debug, Clone)]
+pub struct DiagramAssets {
+    /// The unit capsule every node is scaled from.
+    pub pill: Handle<Mesh>,
+    pub cylinder: Handle<Mesh>,
+    pub cone: Handle<Mesh>,
+    pub roles: Vec<(NodeRole, Handle<StandardMaterial>)>,
+    pub positive: Handle<StandardMaterial>,
+    pub negative: Handle<StandardMaterial>,
+    pub neutral: Handle<StandardMaterial>,
+    pub group: Handle<StandardMaterial>,
+}
+
+/// Okabe–Ito blue and vermillion: readable with common colour-vision
+/// deficiencies, and the same pair the rest of bevaru uses.
+pub const POSITIVE: Color = Color::srgb(0.0, 0.447, 0.698);
+pub const NEGATIVE: Color = Color::srgb(0.835, 0.369, 0.0);
+pub const NEUTRAL: Color = Color::srgb(0.6, 0.6, 0.63);
+
+pub fn role_color(role: NodeRole) -> Color {
+    match role {
+        NodeRole::Input => Color::srgb(0.84, 0.87, 0.92),
+        NodeRole::Bias => Color::srgb(0.78, 0.78, 0.8),
+        NodeRole::Sum => Color::srgb(0.27, 0.3, 0.38),
+        NodeRole::Activation => Color::srgb(0.9, 0.62, 0.0),
+        NodeRole::Output => Color::srgb(0.0, 0.62, 0.45),
+    }
+}
+
+impl DiagramAssets {
+    pub fn new(meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMaterial>) -> Self {
+        // Pills get a coated finish: a fairly rough base under a glossy
+        // clearcoat, so the domed faces catch a highlight like a tablet.
+        let roles = NodeRole::ALL
+            .map(|r| {
+                let m = materials.add(StandardMaterial {
+                    base_color: role_color(r),
+                    perceptual_roughness: 0.45,
+                    reflectance: 0.5,
+                    clearcoat: 0.8,
+                    clearcoat_perceptual_roughness: 0.18,
+                    ..default()
+                });
+                (r, m)
+            })
+            .to_vec();
+        let mut tube = |c: Color| {
+            materials.add(StandardMaterial {
+                base_color: c,
+                perceptual_roughness: 0.55,
+                ..default()
+            })
+        };
+        let positive = tube(POSITIVE);
+        let negative = tube(NEGATIVE);
+        let neutral = tube(NEUTRAL);
+        let group = materials.add(StandardMaterial {
+            base_color: Color::srgba(0.55, 0.62, 0.75, 0.16),
+            alpha_mode: AlphaMode::Blend,
+            unlit: true,
+            double_sided: true,
+            cull_mode: None,
+            ..default()
+        });
+        Self {
+            pill: meshes.add(
+                Capsule3d::new(1.0, 2.0 * PILL_BAND)
+                    .mesh()
+                    .rings(12)
+                    .latitudes(32)
+                    .longitudes(48),
+            ),
+            cylinder: meshes.add(Cylinder::new(1.0, 1.0).mesh().resolution(24)),
+            cone: meshes.add(Cone::new(1.0, 1.0).mesh().resolution(24)),
+            roles,
+            positive,
+            negative,
+            neutral,
+            group,
+        }
+    }
+
+    fn role(&self, role: NodeRole) -> Handle<StandardMaterial> {
+        self.roles
+            .iter()
+            .find(|(r, _)| *r == role)
+            .map(|(_, h)| h.clone())
+            .unwrap_or_else(|| self.neutral.clone())
+    }
+
+    fn edge(&self, weight: Option<f64>) -> Handle<StandardMaterial> {
+        match weight.map(sign) {
+            Some(Sign::Positive) => self.positive.clone(),
+            Some(Sign::Negative) => self.negative.clone(),
+            Some(Sign::Zero) => self.neutral.clone(),
+            None => self.role(NodeRole::Sum),
+        }
+    }
+}
+
+/// The root entity of a spawned diagram; despawning it removes everything.
+#[derive(Component, Debug, Default)]
+pub struct DiagramRoot;
+
+/// Spawn `diagram` under a new root with `marker`, from the shared meshes.
+/// Each group's backdrop is an extruded `Capsule2d` sized to its members,
+/// so it is the one mesh made per diagram.
+pub fn spawn_diagram(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    assets: &DiagramAssets,
+    diagram: &Diagram,
+    marker: impl Bundle,
+) -> Entity {
+    let mut root = commands.spawn((
+        DiagramRoot,
+        Transform::default(),
+        Visibility::default(),
+        marker,
+    ));
+    root.with_children(|parent| {
+        for n in &diagram.nodes {
+            parent.spawn((
+                Mesh3d(assets.pill.clone()),
+                MeshMaterial3d(assets.role(n.role)),
+                n.pill_transform(),
+            ));
+        }
+        for e in &diagram.edges {
+            let Some(p) = diagram.placement(e) else {
+                continue;
+            };
+            let material = assets.edge(e.weight);
+            parent.spawn((
+                Mesh3d(assets.cylinder.clone()),
+                MeshMaterial3d(material.clone()),
+                tube_transform(p.start, p.end, p.radius),
+            ));
+            if let Some((base, tip, width)) = p.arrow {
+                parent.spawn((
+                    Mesh3d(assets.cone.clone()),
+                    MeshMaterial3d(material),
+                    cone_transform(base, tip, width),
+                ));
+            }
+        }
+        for g in &diagram.groups {
+            let Some(b) = diagram.group_bounds(g) else {
+                continue;
+            };
+            // A pill in the X–Z plane behind the nodes: Capsule2d's long
+            // axis is local Y, so rotate local Y to world Z (and its
+            // extrusion depth, local Z, to world −Y).
+            let (along_z, across_x) = (b.half.z, b.half.x);
+            let radius = across_x.min(along_z);
+            let pill = Extrusion::new(
+                Capsule2d::new(radius, (along_z - radius).max(0.0) * 2.0),
+                0.04,
+            );
+            parent.spawn((
+                Mesh3d(meshes.add(pill)),
+                MeshMaterial3d(assets.group.clone()),
+                Transform::from_translation(b.center + Vec3::Y * (b.half.y + 0.05))
+                    .with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
+            ));
+        }
+    });
+    root.id()
+}
+
+// ---------------------------------------------------------------------------
+// 2-D slide projection
+
+/// A diagram as seen through a camera, in slide coordinates: [0, 1]² with
+/// the origin at the top-left, as slide shapes are positioned.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SlideProjection {
+    pub nodes: Vec<ProjectedNode>,
+    pub edges: Vec<ProjectedEdge>,
+    pub labels: Vec<ProjectedLabel>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ProjectedNode {
+    pub id: String,
+    pub role: NodeRole,
+    pub center: [f32; 2],
+    /// Apparent half width and half height of the tablet, as fractions of
+    /// the slide's width and height. Front-on it is a circle (ECMA-376
+    /// `ellipse`).
+    pub half_size: [f32; 2],
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ProjectedEdge {
+    pub id: String,
+    pub from: [f32; 2],
+    pub to: [f32; 2],
+    pub arrow: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ProjectedLabel {
+    pub id: String,
+    pub text: String,
+    pub at: [f32; 2],
+}
+
+/// Project world points through `view` with Bevy's own perspective (the
+/// default field of view) at `aspect` (width / height).
+pub struct SlideCamera {
+    clip_from_world: Mat4,
+}
+
+impl SlideCamera {
+    pub fn new(view: &OrbitView, aspect: f32) -> Self {
+        let projection = PerspectiveProjection {
+            aspect_ratio: aspect,
+            ..default()
+        };
+        let world_from_view = view.transform().to_matrix();
+        Self {
+            clip_from_world: projection.get_clip_from_view() * world_from_view.inverse(),
+        }
+    }
+
+    /// Slide coordinates of a world point, or `None` behind the camera.
+    pub fn point(&self, p: Vec3) -> Option<[f32; 2]> {
+        let clip = self.clip_from_world * p.extend(1.0);
+        (clip.w > 1e-6).then(|| {
+            let ndc = clip.truncate() / clip.w;
+            [(ndc.x + 1.0) / 2.0, (1.0 - ndc.y) / 2.0]
+        })
+    }
+}
+
+impl Diagram {
+    pub fn project(&self, view: &OrbitView, aspect: f32) -> SlideProjection {
+        let cam = SlideCamera::new(view, aspect);
+        let nodes = self
+            .nodes
+            .iter()
+            .filter_map(|n| {
+                let c = cam.point(n.pos())?;
+                let h = n.half_size();
+                let right = cam.point(n.pos() + Vec3::X * h.x)?;
+                let top = cam.point(n.pos() + Vec3::Z * h.z)?;
+                Some(ProjectedNode {
+                    id: n.id.clone(),
+                    role: n.role,
+                    center: c,
+                    half_size: [(right[0] - c[0]).abs(), (top[1] - c[1]).abs()],
+                })
+            })
+            .collect();
+        let edges = self
+            .edges
+            .iter()
+            .filter_map(|e| {
+                let p = self.placement(e)?;
+                let tip = p.arrow.map_or(p.end, |(_, tip, _)| tip);
+                Some(ProjectedEdge {
+                    id: e.id.clone(),
+                    from: cam.point(p.start)?,
+                    to: cam.point(tip)?,
+                    arrow: e.arrow,
+                })
+            })
+            .collect();
+        let labels = self
+            .label_anchors()
+            .into_iter()
+            .filter_map(|l| {
+                Some(ProjectedLabel {
+                    at: cam.point(l.at)?,
+                    id: l.id,
+                    text: l.text,
+                })
+            })
+            .collect();
+        SlideProjection {
+            nodes,
+            edges,
+            labels,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Hover picking
+
+/// What the pointer is over.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HoverTarget {
+    Node(usize),
+    Edge(usize),
+}
+
+/// The node or edge under `pointer`, in screen coordinates. Nodes are
+/// discs (centre, radius); edges are segments, hit within `tolerance`.
+/// Nodes win over edges, and the nearest wins among each.
+pub fn pick(
+    nodes: &[Option<(Vec2, f32)>],
+    edges: &[Option<(Vec2, Vec2)>],
+    pointer: Vec2,
+    tolerance: f32,
+) -> Option<HoverTarget> {
+    let nearest = |it: &mut dyn Iterator<Item = (usize, f32)>| {
+        it.min_by(|a, b| a.1.total_cmp(&b.1)).map(|(i, _)| i)
+    };
+    let node = nearest(&mut nodes.iter().enumerate().filter_map(|(i, n)| {
+        let (c, r) = (*n)?;
+        let d = c.distance(pointer);
+        (d <= r).then_some((i, d))
+    }));
+    if let Some(i) = node {
+        return Some(HoverTarget::Node(i));
+    }
+    nearest(&mut edges.iter().enumerate().filter_map(|(i, e)| {
+        let (a, b) = (*e)?;
+        let ab = b - a;
+        let t = ((pointer - a).dot(ab) / ab.length_squared().max(1e-6)).clamp(0.0, 1.0);
+        let d = (a + ab * t).distance(pointer);
+        (d <= tolerance).then_some((i, d))
+    }))
+    .map(HoverTarget::Edge)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn perceptron() -> Diagram {
+        Diagram::perceptron([0.8, -0.5, 0.3], 0.1, Activation::Sigmoid)
+    }
+
+    #[test]
+    fn perceptron_structure() {
+        let d = perceptron();
+        d.validate().unwrap();
+        assert_eq!((d.nodes.len(), d.edges.len()), (7, 6));
+        let into_sum: Vec<f64> = d
+            .edges
+            .iter()
+            .filter(|e| e.to == "sum")
+            .filter_map(|e| e.weight)
+            .collect();
+        assert_eq!(into_sum, [0.8, -0.5, 0.3, 0.1]);
+        for id in ["sum-act", "act-y"] {
+            assert!(d.edges.iter().find(|e| e.id == id).unwrap().arrow);
+        }
+        assert_eq!(d.node("act").unwrap().label, "σ");
+        let step = Diagram::perceptron([0.8, -0.5, 0.3], 0.1, Activation::Step);
+        assert_eq!(step.node("act").unwrap().label, "step");
+        let labels: Vec<String> = d.edges.iter().filter_map(|e| e.label.clone()).collect();
+        assert_eq!(labels, ["w₁ = 0.8", "w₂ = −0.5", "w₃ = 0.3", "b = 0.1"]);
+    }
+
+    #[test]
+    fn formulas_carry_live_values_and_sign_colours() {
+        let d = perceptron();
+        let f = |id: &str| {
+            d.node(id)
+                .and_then(|n| n.formula.clone())
+                .or_else(|| d.edges.iter().find(|e| e.id == id)?.formula.clone())
+                .unwrap_or_else(|| panic!("{id} has no formula"))
+        };
+        let sum = f("sum");
+        assert_eq!(sum.text, "z = Σᵢ wᵢxᵢ + b = 0.8·x₁ − 0.5·x₂ + 0.3·x₃ + 0.1");
+        let negative = crate::formula::typst_color(NEGATIVE);
+        assert!(
+            sum.typst
+                .contains(&format!("#text(fill: {negative})[$-0.5$]"))
+        );
+        assert!(f("act").text.starts_with("σ(z)"));
+        let step = Diagram::perceptron([0.8, -0.5, 0.3], 0.1, Activation::Step);
+        let act = step.node("act").unwrap().formula.clone().unwrap();
+        assert!(act.text.starts_with("H(z)") && act.typst.contains("cases"));
+        // Every node and edge of the perceptron explains itself.
+        assert!(d.nodes.iter().all(|n| n.formula.is_some()));
+        assert!(d.edges.iter().all(|e| e.formula.is_some()));
+        let negative_bias = Diagram::perceptron([0.0, 1.0, -2.0], -0.25, Activation::Sigmoid);
+        let sum = negative_bias.node("sum").unwrap().formula.clone().unwrap();
+        assert_eq!(sum.text, "z = Σᵢ wᵢxᵢ + b = 0·x₁ + 1·x₂ − 2·x₃ − 0.25");
+    }
+
+    #[cfg(feature = "math")]
+    #[test]
+    fn every_perceptron_formula_typesets() {
+        let dump = std::env::var_os("BEVARU_DUMP_FORMULAS");
+        for activation in [Activation::Sigmoid, Activation::Step] {
+            for (id, f) in perceptron_formulas([0.8, -0.5, 0.3], -0.1, activation) {
+                let img = crate::formula::typeset(&f.typst, 22.0)
+                    .unwrap_or_else(|e| panic!("{id}: {e}\n{}", f.typst));
+                assert!(img.width > 4 && img.height > 4, "{id}");
+                if let Some(dir) = &dump {
+                    let rgba: Vec<u8> = img.rgba.clone();
+                    image::RgbaImage::from_raw(img.width as u32, img.height as u32, rgba)
+                        .unwrap()
+                        .save(std::path::Path::new(dir).join(format!("{activation:?}-{id}.png")))
+                        .unwrap();
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn picking_prefers_nodes_then_the_nearest_edge() {
+        let nodes = [Some((Vec2::new(100.0, 100.0), 20.0)), None];
+        let edges = [
+            Some((Vec2::new(0.0, 0.0), Vec2::new(200.0, 0.0))),
+            Some((Vec2::new(0.0, 10.0), Vec2::new(200.0, 10.0))),
+        ];
+        let p = |x, y| pick(&nodes, &edges, Vec2::new(x, y), 6.0);
+        assert_eq!(p(105.0, 95.0), Some(HoverTarget::Node(0)));
+        assert_eq!(p(50.0, 2.0), Some(HoverTarget::Edge(0)));
+        assert_eq!(p(50.0, 8.0), Some(HoverTarget::Edge(1)));
+        assert_eq!(p(50.0, 40.0), None);
+        // Beyond a segment's end is a miss.
+        assert_eq!(p(220.0, 0.0), None);
+        // A node over an edge wins.
+        let crossing = [Some((Vec2::new(50.0, 0.0), 10.0))];
+        assert_eq!(
+            pick(&crossing, &edges, Vec2::new(52.0, 1.0), 6.0),
+            Some(HoverTarget::Node(0))
+        );
+    }
+
+    #[test]
+    fn invalid_diagrams_name_the_problem() {
+        let mut d = perceptron();
+        d.edges[0].to = "nowhere".into();
+        assert_eq!(
+            d.validate(),
+            Err(DiagramError::MissingNode {
+                edge: "w1".into(),
+                node: "nowhere".into()
+            })
+        );
+        let mut d = perceptron();
+        d.edges[1].id = "x1".into();
+        assert_eq!(d.validate(), Err(DiagramError::DuplicateId("x1".into())));
+        let mut d = perceptron();
+        d.groups[0].members.push("ghost".into());
+        assert!(d.validate().unwrap_err().to_string().contains("ghost"));
+    }
+
+    #[test]
+    fn json_round_trip() {
+        let d = perceptron();
+        let back: Diagram = serde_json::from_str(&serde_json::to_string(&d).unwrap()).unwrap();
+        assert_eq!(back, d);
+    }
+
+    /// Whether `p` lies on `n`'s pill: distance 1 from the unit capsule's
+    /// axis segment, in the pill's own units.
+    fn on_pill(n: &Node, p: Vec3) -> bool {
+        let r = n.radius;
+        let q = p - n.pos();
+        let q = Vec3::new(q.x / r, q.y / (r * PILL_DOME), q.z / r);
+        let along = q.y.clamp(-PILL_BAND, PILL_BAND);
+        (Vec3::new(q.x, q.y - along, q.z).length() - 1.0).abs() < 1e-4
+    }
+
+    #[test]
+    fn surface_distance_matches_the_pill() {
+        let n = Node {
+            id: "n".into(),
+            label: String::new(),
+            role: NodeRole::Sum,
+            position: [1.0, 2.0, 3.0],
+            radius: 0.7,
+            formula: None,
+        };
+        let h = n.half_size();
+        assert!((n.surface_distance(Vec3::X) - h.x).abs() < 1e-5);
+        assert!((n.surface_distance(Vec3::Z) - h.z).abs() < 1e-5);
+        assert!((n.surface_distance(-Vec3::Y) - h.y).abs() < 1e-5);
+        for dir in [
+            Vec3::new(1.0, 0.0, 1.0),
+            Vec3::new(-3.0, 0.0, 1.0),
+            Vec3::new(1.0, -1.0, 0.5),
+            Vec3::new(0.2, 0.0, -1.0),
+        ] {
+            let d = dir.normalize();
+            assert!(on_pill(&n, n.pos() + d * n.surface_distance(d)), "{dir}");
+        }
+        // A constant radius in the diagram's plane: every in-plane direction.
+        for k in 0..12 {
+            let a = k as f32 * std::f32::consts::TAU / 12.0;
+            let d = Vec3::new(a.cos(), 0.0, a.sin());
+            assert!((n.surface_distance(d) - n.radius).abs() < 1e-5);
+        }
+        // The shared unit capsule, placed, reaches the same extents.
+        let t = n.pill_transform();
+        assert!(t.transform_point(Vec3::X).distance(n.pos() + Vec3::X * h.x) < 1e-5);
+        assert!(
+            t.transform_point(-Vec3::Y * (1.0 + PILL_BAND))
+                .distance(n.pos() - Vec3::Y * h.y)
+                < 1e-5
+        );
+    }
+
+    #[test]
+    fn tubes_end_on_node_surfaces_and_encode_weights() {
+        let d = perceptron();
+        for e in &d.edges {
+            let p = d.placement(e).unwrap();
+            let (a, b) = (d.node(&e.from).unwrap(), d.node(&e.to).unwrap());
+            assert!(on_pill(a, p.start), "{}", e.id);
+            let tip = p.arrow.map_or(p.end, |(_, tip, _)| tip);
+            assert!(on_pill(b, tip), "{}", e.id);
+        }
+        assert!(weight_radius(0.8) > weight_radius(-0.5));
+        assert_eq!(weight_radius(0.0), MIN_TUBE);
+        assert_eq!(weight_radius(10.0), MAX_TUBE);
+        assert_eq!(sign(0.8), Sign::Positive);
+        assert_eq!(sign(-0.5), Sign::Negative);
+        assert_eq!(sign(0.0), Sign::Zero);
+    }
+
+    #[test]
+    fn tube_transform_maps_the_unit_cylinder_onto_the_segment() {
+        let (a, b) = (Vec3::new(1.0, 2.0, 3.0), Vec3::new(4.0, -1.0, 0.5));
+        let t = tube_transform(a, b, 0.2);
+        // The unit cylinder's axis ends are (0, ±½, 0).
+        assert!(t.transform_point(Vec3::Y * 0.5).distance(b) < 1e-5);
+        assert!(t.transform_point(-Vec3::Y * 0.5).distance(a) < 1e-5);
+    }
+
+    /// A diagram twice the perceptron's size, with the same one group.
+    fn doubled() -> Diagram {
+        let mut d = perceptron();
+        let extra = perceptron();
+        for mut n in extra.nodes {
+            n.id = format!("{}-2", n.id);
+            n.position[1] += 3.0;
+            d.nodes.push(n);
+        }
+        for mut e in extra.edges {
+            e.id = format!("{}-2", e.id);
+            e.from = format!("{}-2", e.from);
+            e.to = format!("{}-2", e.to);
+            d.edges.push(e);
+        }
+        d
+    }
+
+    #[test]
+    fn mesh_count_does_not_grow_with_the_diagram() {
+        let count = |d: &Diagram| {
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins)
+                .add_plugins(AssetPlugin::default())
+                .init_asset::<Mesh>()
+                .init_asset::<StandardMaterial>();
+            let world = app.world_mut();
+            let assets = world.resource_scope(|world, mut meshes: Mut<Assets<Mesh>>| {
+                let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
+                DiagramAssets::new(&mut meshes, &mut materials)
+            });
+            world.resource_scope(|world, mut meshes: Mut<Assets<Mesh>>| {
+                let mut commands = world.commands();
+                spawn_diagram(&mut commands, &mut meshes, &assets, d, ());
+            });
+            world.flush();
+            world.resource::<Assets<Mesh>>().len()
+        };
+        let big = doubled();
+        big.validate().unwrap();
+        assert_eq!(count(&perceptron()), count(&big));
+        // Three shared unit meshes plus one backdrop.
+        assert_eq!(count(&perceptron()), 4);
+    }
+
+    fn front() -> OrbitView {
+        OrbitView {
+            yaw: -std::f32::consts::FRAC_PI_2,
+            pitch: 0.0,
+            distance: 22.0,
+            target: Vec3::new(0.7, 0.0, 0.0),
+        }
+    }
+
+    #[test]
+    fn front_on_projection_keeps_the_layout() {
+        let p = perceptron().project(&front(), 16.0 / 9.0);
+        let at = |id: &str| p.nodes.iter().find(|n| n.id == id).unwrap().center;
+        let inside = |c: [f32; 2]| (0.0..=1.0).contains(&c[0]) && (0.0..=1.0).contains(&c[1]);
+        assert!(
+            p.nodes.iter().all(|n| inside(n.center)
+                && n.half_size[1] > 0.0
+                // Fractions of width vs height: in the same units, front-on
+                // tablets are round.
+                && (n.half_size[0] * 16.0 / 9.0 / n.half_size[1] - 1.0).abs() < 0.05),
+            "tablets are round front-on"
+        );
+        assert!(p.labels.iter().all(|l| inside(l.at)));
+        // Left to right: inputs, Σ, activation, output.
+        assert!(at("x1")[0] < at("sum")[0] && at("sum")[0] < at("act")[0]);
+        assert!(at("act")[0] < at("y")[0]);
+        // Top to bottom: x₁ above x₂ above x₃ above the bias.
+        assert!(at("x1")[1] < at("x2")[1] && at("x2")[1] < at("x3")[1]);
+        assert!(at("x3")[1] < at("b")[1]);
+        assert_eq!(p.edges.len(), 6);
+        assert!(p.edges.iter().filter(|e| e.arrow).count() == 2);
+    }
+
+    #[test]
+    fn projection_matches_the_view_target() {
+        // The orbit target is the centre of the slide.
+        let view = OrbitView {
+            yaw: -1.2,
+            pitch: 0.3,
+            distance: 18.0,
+            target: Vec3::new(0.0, 0.0, 0.0),
+        };
+        let cam = SlideCamera::new(&view, 16.0 / 9.0);
+        let c = cam.point(Vec3::ZERO).unwrap();
+        assert!((c[0] - 0.5).abs() < 1e-5 && (c[1] - 0.5).abs() < 1e-5);
+        // Up in the world is up on the slide (smaller y).
+        assert!(cam.point(Vec3::Z).unwrap()[1] < c[1]);
+    }
+}
