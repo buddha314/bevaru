@@ -12,9 +12,8 @@ use bevaru::core::model::LinearModel;
 use bevaru::core::nalgebra::{DMatrix, DVector};
 use bevaru::core::surface::{SurfaceSettings, sample_objective_surface};
 use bevaru::loss_surface::objective_surface_mesh;
-use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit};
+use bevaru::orbit::{OrbitPlugin, OrbitRig, OrbitView};
 use bevy::prelude::*;
-use bevy_egui::input::EguiWantsInput;
 use bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
 
 const RESOLUTION: usize = 65;
@@ -71,26 +70,12 @@ struct SurfaceState {
     error: Option<String>,
 }
 
-#[derive(Resource)]
-struct Orbit {
-    yaw: f32,
-    pitch: f32,
-    distance: f32,
-    target: Vec3,
-    frame: bool,
-}
-
-impl Default for Orbit {
-    fn default() -> Self {
-        Self {
-            yaw: 0.8,
-            pitch: 0.55,
-            distance: 14.0,
-            target: Vec3::new(0.0, 0.0, 1.5),
-            frame: false,
-        }
-    }
-}
+const HOME: OrbitView = OrbitView {
+    yaw: 0.8,
+    pitch: 0.55,
+    distance: 14.0,
+    target: Vec3::new(0.0, 0.0, 1.5),
+};
 
 fn main() {
     let mut app = App::new();
@@ -104,15 +89,15 @@ fn main() {
             ..default()
         }),
         EguiPlugin::default(),
+        OrbitPlugin,
     ));
     if let Some(capture) = CapturePlugin::from_env() {
         app.add_plugins(capture);
     }
     app.init_resource::<Controls>()
-        .init_resource::<Orbit>()
         .insert_resource(ClearColor(Color::srgb(0.97, 0.97, 0.98)))
         .add_systems(Startup, setup)
-        .add_systems(Update, (update_surface, camera_input, draw_axes))
+        .add_systems(Update, (update_surface, draw_axes))
         .add_systems(EguiPrimaryContextPass, ui)
         .run();
 }
@@ -143,7 +128,7 @@ fn setup(
             ..default()
         })),
     ));
-    commands.spawn((Camera3d::default(), Transform::default()));
+    commands.spawn(OrbitRig::bundle(HOME));
     commands.insert_resource(SurfaceState {
         data,
         base,
@@ -190,7 +175,7 @@ fn ui(
     mut contexts: EguiContexts,
     mut controls: ResMut<Controls>,
     surface: Option<Res<SurfaceState>>,
-    mut orbit: ResMut<Orbit>,
+    mut rig: Single<&mut OrbitRig>,
 ) -> Result {
     let ctx = contexts.ctx_mut()?.clone();
     let mut root = egui::Ui::new(
@@ -270,47 +255,10 @@ fn ui(
             }
             ui.small("Left-drag to orbit; right-drag to pan; scroll to zoom.");
             if ui.button("Frame surface (F)").clicked() {
-                orbit.frame = true;
+                rig.reset = true;
             }
         });
     Ok(())
-}
-
-fn camera_input(
-    mut camera: Single<&mut Transform, With<Camera3d>>,
-    mut orbit: ResMut<Orbit>,
-    buttons: Res<ButtonInput<MouseButton>>,
-    keys: Res<ButtonInput<KeyCode>>,
-    motion: Res<AccumulatedMouseMotion>,
-    scroll: Res<AccumulatedMouseScroll>,
-    egui: Option<Res<EguiWantsInput>>,
-    window: Single<&Window>,
-) {
-    if keys.just_pressed(KeyCode::KeyF) || orbit.frame {
-        *orbit = Orbit::default();
-    }
-    if !egui.is_some_and(|e| e.wants_any_pointer_input()) {
-        let lines = match scroll.unit {
-            MouseScrollUnit::Line => scroll.delta.y,
-            MouseScrollUnit::Pixel => scroll.delta.y / 40.0,
-        };
-        orbit.distance = (orbit.distance * 0.9f32.powf(lines)).clamp(2.0, 80.0);
-        if buttons.pressed(MouseButton::Left) {
-            orbit.yaw -= motion.delta.x * 0.008;
-            orbit.pitch = (orbit.pitch + motion.delta.y * 0.008).clamp(-1.45, 1.45);
-        } else if buttons.pressed(MouseButton::Right) {
-            let right = Vec3::new(-orbit.yaw.sin(), orbit.yaw.cos(), 0.0);
-            let k = orbit.distance / window.height().max(1.0);
-            orbit.target += (-motion.delta.x * right + motion.delta.y * Vec3::Z) * k;
-        }
-    }
-    let dir = Vec3::new(
-        orbit.pitch.cos() * orbit.yaw.cos(),
-        orbit.pitch.cos() * orbit.yaw.sin(),
-        orbit.pitch.sin(),
-    );
-    **camera = Transform::from_translation(orbit.target + dir * orbit.distance)
-        .looking_at(orbit.target, Vec3::Z);
 }
 
 fn draw_axes(mut gizmos: Gizmos) {

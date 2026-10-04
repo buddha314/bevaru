@@ -9,11 +9,11 @@
 
 ## 2. Rendering (bevaru)
 
-- [ ] 2.1 Generalize `src/loss_surface.rs` to `grid_mesh(&SurfaceGrid, …)`, with `objective_surface_mesh` as a wrapper; colour with ruviz's `ColorMap::coolwarm()`; fixed-box scaling; skip masked cells; the equilateral map for the ternary base, with corner labels
-- [ ] 2.2 Move the `loss_surface` example's orbit, zoom, and reset rig into a shared module, used by both
-- [ ] 2.3 Axis tick labels, the colour legend, and the clip plane as projected egui overlays
-- [ ] 2.4 The slice plane and highlighted curve from each view's declared slice; a test that slice values equal `loss_curve_chart` data
-- [ ] 2.5 Probe: hit point from mesh picking (or a heightfield ray march); loss and gradient from the core functions; the arrow, the subgradient note, and "no gradient here"
+- [x] 2.1 Generalize `src/loss_surface.rs` to `grid_mesh(&SurfaceGrid, …)`, with `objective_surface_mesh` as a wrapper; colour with ruviz's `ColorMap::coolwarm()`; fixed-box scaling; skip masked cells; the equilateral map for the ternary base, with corner labels
+- [x] 2.2 Move the `loss_surface` example's orbit, zoom, and reset rig into a shared module, used by both
+- [x] 2.3 Axis tick labels, the colour legend, and the clip plane as projected egui overlays
+- [x] 2.4 The slice plane and highlighted curve from each view's declared slice; a test that slice values equal `loss_curve_chart` data
+- [x] 2.5 Probe: hit point from mesh picking (or a heightfield ray march); loss and gradient from the core functions; the arrow, the subgradient note, and "no gradient here"
 
 ## 3. Experience
 

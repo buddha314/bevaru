@@ -576,11 +576,8 @@ impl ShapeView {
             HingeMargin => at(LossKind::Hinge, x, &p.with_margin(y).ok()?),
             SquaredHingeMargin => at(LossKind::SquaredHinge, x, &p.with_margin(y).ok()?),
             ThreeClassProbabilities => {
-                let q1 = 1.0 - x - y;
-                if q1 < EPSILON || x < 0.0 || y < 0.0 {
-                    return None;
-                }
-                -q1.ln()
+                let q1 = simplex_true_probability(x, y)?;
+                -q1.max(EPSILON).ln()
             }
             ThreeClassSoftmax => softmax_cross_entropy(&[0.0, x, y], 0),
             ThreeClassHingeWestonWatkins => hinge_weston_watkins(&[0.0, x, y], 0, p.margin()),
@@ -639,10 +636,7 @@ impl ShapeView {
                 (LossKind::SquaredHinge.grad(x, &params), 2.0 * h)
             }
             ThreeClassProbabilities => {
-                let q1 = 1.0 - x - y;
-                if q1 < EPSILON || x < 0.0 || y < 0.0 {
-                    return None;
-                }
+                let q1 = simplex_true_probability(x, y)?.max(EPSILON);
                 // −ln(1 − q₂ − q₃): both partials are 1/q₁.
                 (1.0 / q1, 1.0 / q1)
             }
@@ -701,32 +695,53 @@ impl ShapeView {
         ))
     }
 
-    /// The slice as `n` points `(input x, input y, argument, loss)`: where it
-    /// lies on the surface, and the 2-D chart's argument (residual or margin)
-    /// and loss there. `None` for views without a 2-D curve.
-    pub fn slice_points(self, params: &ShapeParams, n: usize) -> Option<Vec<[f64; 4]>> {
-        let (xa, ya) = self.axes(n);
-        let point =
-            |x: f64, y: f64, arg: f64| [x, y, arg, self.value(x, y, params).unwrap_or(f64::NAN)];
-        let points = match self.slice()? {
-            Slice::ZeroTruth => (0..n).map(|i| point(0.0, ya.at(i), ya.at(i))).collect(),
-            Slice::ZeroOtherScore => (0..n).map(|i| point(xa.at(i), 0.0, xa.at(i))).collect(),
-            Slice::CertainTruth => (0..n)
-                .map(|i| {
-                    let q = ya.at(i);
-                    point(1.0, q, (q / (1.0 - q)).ln())
-                })
-                .collect(),
-            Slice::HyperparameterRow => {
-                let h = match self {
+    /// Where on the surface the 2-D chart's argument `arg` (the residual or
+    /// the margin) lies along this view's slice. `None` for views without a
+    /// 2-D curve.
+    pub fn slice_input(self, arg: f64, params: &ShapeParams) -> Option<(f64, f64)> {
+        Some(match self.slice()? {
+            Slice::ZeroTruth => (0.0, arg),
+            Slice::ZeroOtherScore => (arg, 0.0),
+            Slice::CertainTruth => (1.0, sigmoid(arg)),
+            Slice::HyperparameterRow => (
+                arg,
+                match self {
                     ShapeView::HuberDelta => params.loss.huber_delta(),
                     _ => params.loss.margin(),
-                };
-                (0..n).map(|i| point(xa.at(i), h, xa.at(i))).collect()
-            }
-        };
-        Some(points)
+                },
+            ),
+        })
     }
+
+    /// The slice as `n` points `(input x, input y, argument, loss)`: where it
+    /// lies on the surface, and the 2-D chart's argument (residual or margin)
+    /// and loss there, spanning the view's axes. `None` for views without a
+    /// 2-D curve.
+    pub fn slice_points(self, params: &ShapeParams, n: usize) -> Option<Vec<[f64; 4]>> {
+        let (xa, ya) = self.axes(n);
+        let arg = |i: usize| match self.slice()? {
+            Slice::ZeroTruth => Some(ya.at(i)),
+            Slice::CertainTruth => {
+                let q = ya.at(i);
+                Some((q / (1.0 - q)).ln())
+            }
+            Slice::ZeroOtherScore | Slice::HyperparameterRow => Some(xa.at(i)),
+        };
+        (0..n)
+            .map(|i| {
+                let a = arg(i)?;
+                let (x, y) = self.slice_input(a, params)?;
+                Some([x, y, a, self.value(x, y, params).unwrap_or(f64::NAN)])
+            })
+            .collect()
+    }
+}
+
+/// q₁ = 1 − q₂ − q₃ for a point on the probability triangle, or `None` off it.
+/// Grid points on the hypotenuse may round a hair below zero; they count as on.
+fn simplex_true_probability(q2: f64, q3: f64) -> Option<f64> {
+    let q1 = 1.0 - q2 - q3;
+    (q2 >= 0.0 && q3 >= 0.0 && q1 >= -1e-9).then_some(q1)
 }
 
 impl fmt::Display for ShapeView {
