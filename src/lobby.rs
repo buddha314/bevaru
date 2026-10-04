@@ -334,7 +334,10 @@ pub mod ui {
                 )
                 .add_systems(
                     Update,
-                    escape_to_lobby.run_if(not(in_state(AppScreen::Lobby))),
+                    (
+                        escape_to_lobby.run_if(not(in_state(AppScreen::Lobby))),
+                        exit_shortcut.run_if(in_state(AppScreen::Lobby)),
+                    ),
                 );
         }
     }
@@ -365,6 +368,7 @@ pub mod ui {
         mut images: ResMut<Assets<Image>>,
         assets: Res<AssetServer>,
         mut enter: MessageWriter<EnterExperience>,
+        mut exit: MessageWriter<AppExit>,
     ) -> Result {
         for e in registry.iter() {
             if !thumbnails.0.contains_key(e.id) {
@@ -392,8 +396,19 @@ pub mod ui {
         egui::CentralPanel::default().show(&mut root, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.add_space(12.0);
-                ui.heading(egui::RichText::new("bevaru").size(30.0).strong());
-                ui.label("Interactive machine-learning visualizations. Pick an experience; press Esc to come back.");
+                ui.horizontal(|ui| {
+                    ui.heading(egui::RichText::new("bevaru").size(30.0).strong());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .button(egui::RichText::new("Exit").size(16.0))
+                            .on_hover_text("Quit bevaru (Ctrl+Q)")
+                            .clicked()
+                        {
+                            exit.write(AppExit::Success);
+                        }
+                    });
+                });
+                ui.label("Interactive machine-learning visualizations. Pick an experience; press Esc to come back, or Ctrl+Q to quit.");
                 ui.add_space(18.0);
                 // Categories flow side by side, wrapping whole categories to
                 // the next row when the window is too narrow for them.
@@ -560,6 +575,21 @@ pub mod ui {
                 }
             });
         Ok(())
+    }
+
+    /// Ctrl+Q quits from the lobby (Esc never quits: it means "back").
+    pub(crate) fn exit_shortcut(
+        keys: Res<ButtonInput<KeyCode>>,
+        egui: Option<Res<EguiWantsInput>>,
+        mut exit: MessageWriter<AppExit>,
+    ) {
+        if egui.is_some_and(|e| e.wants_any_keyboard_input()) {
+            return;
+        }
+        let ctrl = keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]);
+        if ctrl && keys.just_pressed(KeyCode::KeyQ) {
+            exit.write(AppExit::Success);
+        }
     }
 
     pub(crate) fn escape_to_lobby(
