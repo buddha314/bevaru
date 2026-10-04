@@ -233,6 +233,56 @@ pub fn capabilities_md(m: &Manifest) -> String {
         let _ = writeln!(w, "- `{}`: {}", v.id, v.description);
     }
 
+    let _ = writeln!(w, "\n## Loss shapes\n");
+    let _ = writeln!(
+        w,
+        "3-D views of each loss over two inputs, for `sample_loss_shape` and `render_loss_shape`. Heights above the cap are clipped and flagged.\n"
+    );
+    let _ = writeln!(
+        w,
+        "| id | family | losses | x axis | y axis | height | hyperparameters |"
+    );
+    let _ = writeln!(
+        w,
+        "| -- | ------ | ------ | ------ | ------ | ------ | --------------- |"
+    );
+    let axis = |a: &super::ShapeAxisInfo| {
+        format!("{} ({}), {} … {}", a.symbol, a.name, num(a.min), num(a.max))
+    };
+    for v in &m.loss_shapes {
+        let mut height = v.height_label.clone();
+        if let Some(cap) = v.cap {
+            height.push_str(&format!(", capped at {}", num(cap)));
+        }
+        let hyper = if v.hyperparameters.is_empty() {
+            "—".to_string()
+        } else {
+            v.hyperparameters
+                .iter()
+                .map(|h| format!("`{h}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        let _ = writeln!(
+            w,
+            "| `{}` | {} | {} | {} | {} | {} | {} |",
+            v.id,
+            v.family,
+            v.losses.join(", "),
+            cell(&axis(&v.x_axis)),
+            cell(&axis(&v.y_axis)),
+            cell(&height),
+            hyper
+        );
+    }
+    let _ = writeln!(w);
+    for v in &m.loss_shapes {
+        let _ = writeln!(w, "- **`{}`**: {}", v.id, v.caption);
+        if let Some(slice) = &v.slice {
+            let _ = writeln!(w, "  The 2-D curve is the slice {slice}");
+        }
+    }
+
     let _ = writeln!(w, "\n## Sweep parameters\n");
     let _ = writeln!(w, "| id | name | applies to | default range |");
     let _ = writeln!(w, "| -- | ---- | ---------- | ------------- |");

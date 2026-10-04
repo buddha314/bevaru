@@ -7,6 +7,7 @@
 
 use std::fmt;
 
+use bevaru_core::shapes::{ShapeParams, ShapeView};
 use bevaru_core::{LearningRate, LossKind, LossParams, ModelKind, TrainerConfig};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -725,10 +726,137 @@ pub struct LossChartRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DescribeRequest {
-    /// One of losses, models, datasets, views, sweep_parameters,
-    /// experiences, messages, tools, schemas; omit for everything.
+    /// One of losses, models, datasets, views, loss_shapes,
+    /// sweep_parameters, experiences, messages, tools, schemas; omit for
+    /// everything.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub section: Option<String>,
+}
+
+/// Largest resolution (samples per axis) a loss-shape tool accepts.
+pub const MAX_SHAPE_RESOLUTION: usize = 101;
+/// Resolution used when a loss-shape request gives none.
+pub const DEFAULT_SHAPE_RESOLUTION: usize = 41;
+
+/// A 3-D loss-shape view to sample: the loss over two inputs, on a grid.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LossShapeRequest {
+    /// View id, e.g. `probability-vs-truth-cross-entropy`; the manifest's
+    /// `loss_shapes` section lists every view.
+    pub view: String,
+    /// Huber δ (> 0), for views that use it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub huber_delta: Option<f64>,
+    /// Hinge margin (> 0), for views that use it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub margin: Option<f64>,
+    /// Samples per axis, 3 to 101 (default 41). Odd values put the diagonal
+    /// and zero lines exactly on samples.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolution: Option<usize>,
+    /// Cross-entropy only: subtract the entropy H(p), giving the KL divergence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entropy_removed: Option<bool>,
+}
+
+/// A 3-D loss-shape view to render as a PNG surface.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LossShapeRenderRequest {
+    /// View id, as for `sample_loss_shape`.
+    pub view: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub huber_delta: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub margin: Option<f64>,
+    /// Samples per axis, 3 to 101 (default 41).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolution: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entropy_removed: Option<bool>,
+    /// Camera azimuth in degrees (default −60).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub azimuth: Option<f64>,
+    /// Camera elevation in degrees, −90 to 90 (default 30).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub elevation: Option<f64>,
+}
+
+impl LossShapeRenderRequest {
+    /// The sampling part of the request.
+    pub fn shape(&self) -> LossShapeRequest {
+        LossShapeRequest {
+            view: self.view.clone(),
+            huber_delta: self.huber_delta,
+            margin: self.margin,
+            resolution: self.resolution,
+            entropy_removed: self.entropy_removed,
+        }
+    }
+}
+
+/// A validated loss-shape request.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ShapeQuery {
+    pub view: ShapeView,
+    pub params: ShapeParams,
+    pub resolution: usize,
+}
+
+impl TryFrom<&LossShapeRequest> for ShapeQuery {
+    type Error = ApiError;
+    fn try_from(r: &LossShapeRequest) -> Result<Self, ApiError> {
+        let view = ShapeView::from_id(&r.view).ok_or_else(|| {
+            let ids: Vec<&str> = ShapeView::ALL.iter().map(|v| v.id()).collect();
+            ApiError::new(
+                "view",
+                format!(
+                    "unknown view {:?}; expected one of {}",
+                    r.view,
+                    ids.join(", ")
+                ),
+            )
+        })?;
+        let mut params = ShapeParams::default();
+        if let Some(d) = r.huber_delta {
+            params.loss = params
+                .loss
+                .with_huber_delta(d)
+                .map_err(|e| ApiError::new("huber_delta", e.to_string()))?;
+        }
+        if let Some(m) = r.margin {
+            params.loss = params
+                .loss
+                .with_margin(m)
+                .map_err(|e| ApiError::new("margin", e.to_string()))?;
+        }
+        let resolution = r.resolution.unwrap_or(DEFAULT_SHAPE_RESOLUTION);
+        if !(3..=MAX_SHAPE_RESOLUTION).contains(&resolution) {
+            return Err(ApiError::new(
+                "resolution",
+                format!("must be 3 to {MAX_SHAPE_RESOLUTION}, got {resolution}"),
+            ));
+        }
+        if let Some(kl) = r.entropy_removed {
+            if kl && view != ShapeView::CrossEntropy {
+                return Err(ApiError::new(
+                    "entropy_removed",
+                    format!(
+                        "applies only to {}, not {}",
+                        ShapeView::CrossEntropy.id(),
+                        view.id()
+                    ),
+                ));
+            }
+            params.entropy_removed = kl;
+        }
+        Ok(Self {
+            view,
+            params,
+            resolution,
+        })
+    }
 }
 
 /// No arguments.
@@ -841,6 +969,11 @@ pub fn schemas() -> Vec<(&'static str, serde_json::Value)> {
         ),
         ("LossChartRequest", schema_for!(LossChartRequest).to_value()),
         ("LossEvalRequest", schema_for!(LossEvalRequest).to_value()),
+        (
+            "LossShapeRenderRequest",
+            schema_for!(LossShapeRenderRequest).to_value(),
+        ),
+        ("LossShapeRequest", schema_for!(LossShapeRequest).to_value()),
         ("NoArguments", schema_for!(NoArguments).to_value()),
         ("PlaybackRequest", schema_for!(PlaybackRequest).to_value()),
         ("SweepRequest", schema_for!(SweepRequest).to_value()),

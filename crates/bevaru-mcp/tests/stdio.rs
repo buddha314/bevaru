@@ -132,6 +132,29 @@ async fn an_agent_session() {
         "base64 of the PNG signature"
     );
 
+    // Loss shapes: a grid with its caption, and a rendered surface.
+    let r = call(
+        &client,
+        "sample_loss_shape",
+        json!({"view": "probability-vs-truth-cross-entropy", "resolution": 21}),
+    )
+    .await;
+    let out = r.structured_content.expect("structured result");
+    assert_eq!(out["values"].as_array().unwrap().len(), 21);
+    assert_eq!(out["cap"], json!(8.0));
+    assert!(!out["caption"].as_str().unwrap().is_empty());
+    let r = call(&client, "sample_loss_shape", json!({"view": "nope"})).await;
+    assert_eq!(r.is_error, Some(true));
+    assert!(text(&r).contains("two-scores-hinge"), "{}", text(&r));
+    let r = call(
+        &client,
+        "render_loss_shape",
+        json!({"view": "two-scores-hinge", "resolution": 21}),
+    )
+    .await;
+    let image = r.content[0].as_image().expect("image content");
+    assert_eq!(image.mime_type, "image/png");
+
     // The manifest resource is the generated file.
     let rr = client
         .read_resource(ReadResourceRequestParams::new("bevaru://capabilities.json"))

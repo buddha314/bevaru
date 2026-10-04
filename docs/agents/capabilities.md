@@ -59,6 +59,55 @@ Linear classifier trained on logistic (log) loss; its output is a probability vi
 - `features`: Display 2 or 3 chosen feature columns; other features are held at their mean for the boundary slice.
 - `pca`: Display the top 2 or 3 principal components, with each component's explained variance.
 
+## Loss shapes
+
+3-D views of each loss over two inputs, for `sample_loss_shape` and `render_loss_shape`. Heights above the cap are clipped and flagged.
+
+| id | family | losses | x axis | y axis | height | hyperparameters |
+| -- | ------ | ------ | ------ | ------ | ------ | --------------- |
+| `prediction-vs-truth-mse` | prediction-vs-truth | mse | y (true value), -3 … 3 | ŷ (prediction), -3 … 3 | loss | — |
+| `prediction-vs-truth-mae` | prediction-vs-truth | mae | y (true value), -3 … 3 | ŷ (prediction), -3 … 3 | loss | — |
+| `prediction-vs-truth-huber` | prediction-vs-truth | huber | y (true value), -3 … 3 | ŷ (prediction), -3 … 3 | loss | `huber_delta` |
+| `probability-vs-truth-cross-entropy` | probability-vs-truth | logistic | p (true probability), 0 … 1 | q (predicted probability), 1e-4 … 0.9999 | cross-entropy (nats), capped at 8 | — |
+| `two-scores-hinge` | two-scores | hinge | z_correct (score of the correct class), -4 … 4 | z_other (score of the other class), -4 … 4 | loss | `margin` |
+| `two-scores-squared-hinge` | two-scores | squared-hinge | z_correct (score of the correct class), -4 … 4 | z_other (score of the other class), -4 … 4 | loss | `margin` |
+| `two-scores-logistic` | two-scores | logistic | z_correct (score of the correct class), -4 … 4 | z_other (score of the other class), -4 … 4 | loss | — |
+| `two-scores-zero-one` | two-scores | zero-one | z_correct (score of the correct class), -4 … 4 | z_other (score of the other class), -4 … 4 | loss | — |
+| `hyperparameter-huber-delta` | hyperparameter | huber | r (residual ŷ − y), -3 … 3 | δ (Huber δ), 0.1 … 3 | loss | `huber_delta` |
+| `hyperparameter-hinge-margin` | hyperparameter | hinge | m (margin y·f(x)), -3 … 3 | μ (margin parameter), 0.1 … 3 | loss | `margin` |
+| `hyperparameter-squared-hinge-margin` | hyperparameter | squared-hinge | m (margin y·f(x)), -3 … 3 | μ (margin parameter), 0.1 … 3 | loss | `margin` |
+| `three-class-probabilities` | three-class | logistic | q₂ (probability of class 2), 0 … 1 | q₃ (probability of class 3), 0 … 1 | cross-entropy (nats), capped at 8 | — |
+| `three-class-softmax` | three-class | logistic | z₂ (score of rival class 2), -4 … 4 | z₃ (score of rival class 3), -4 … 4 | loss | — |
+| `three-class-hinge-weston-watkins` | three-class | hinge | z₂ (score of rival class 2), -4 … 4 | z₃ (score of rival class 3), -4 … 4 | loss | `margin` |
+| `three-class-hinge-crammer-singer` | three-class | hinge | z₂ (score of rival class 2), -4 … 4 | z₃ (score of rival class 3), -4 … 4 | loss | `margin` |
+
+- **`prediction-vs-truth-mse`**: Loss is zero exactly on the diagonal ŷ = y, where the prediction is right. It depends only on the residual ŷ − y, so the trough looks the same all along the diagonal: a parabola. Big misses cost quadratically more, which is why MSE chases outliers.
+  The 2-D curve is the slice y = 0: along the prediction axis, ŷ is the residual.
+- **`prediction-vs-truth-mae`**: Loss is zero on the diagonal ŷ = y and grows in straight lines either side: a V-shaped trough. The sharp crease at the bottom has no gradient, and every miss costs in proportion to its size, so a few outliers can't dominate.
+  The 2-D curve is the slice y = 0: along the prediction axis, ŷ is the residual.
+- **`prediction-vs-truth-huber`**: A trough along ŷ = y whose bottom is rounded like MSE within δ of the diagonal and whose walls are straight like MAE beyond it. δ sets where the quadratic part ends: small errors are treated gently, outliers linearly.
+  The 2-D curve is the slice y = 0: along the prediction axis, ŷ is the residual.
+- **`probability-vs-truth-cross-entropy`**: Loss is high where truth and prediction disagree: predicting q near 0 when p is 1, or near 1 when p is 0, costs without bound (heights are capped). The valley follows q = p, but its floor is the entropy H(p), not zero: even a perfect forecast of a 50/50 outcome pays ln 2. Remove the entropy to see the KL divergence, which is zero exactly when q = p.
+  The 2-D curve is the slice p = 1: along the predicted-probability axis, with margin m = ln(q / (1 − q)).
+- **`two-scores-hinge`**: Hinge loss depends only on the gap z_correct − z_other, so the surface is a sheet folded along that direction. It is flat (zero) once the correct class wins by the margin, and rises linearly when it doesn't: it stops caring about examples it already gets right.
+  The 2-D curve is the slice z_other = 0: along the correct-class axis, z_correct is the margin.
+- **`two-scores-squared-hinge`**: Like hinge, a sheet folded along the gap between the scores, flat once the correct class wins by the margin. Below the margin it rises quadratically, so badly wrong examples are pushed much harder.
+  The 2-D curve is the slice z_other = 0: along the correct-class axis, z_correct is the margin.
+- **`two-scores-logistic`**: A smooth version of hinge: it depends only on the gap z_correct − z_other, never quite reaches zero, and keeps nudging even confident correct answers. This is softmax cross-entropy for two classes, and the same loss as binary cross-entropy on probabilities.
+  The 2-D curve is the slice z_other = 0: along the correct-class axis, z_correct is the margin.
+- **`two-scores-zero-one`**: A cliff: loss is 1 wherever the other class scores at least as high, and 0 wherever the correct class wins. It counts mistakes exactly, but it is flat everywhere else, so it has no gradient to learn from. Smooth losses exist because of this.
+  The 2-D curve is the slice z_other = 0: along the correct-class axis, z_correct is the margin.
+- **`hyperparameter-huber-delta`**: Every row is a Huber curve for one δ. Small δ makes Huber behave like a scaled absolute error; large δ makes it a squared error over the whole range. The bend where the parabola meets the straight walls slides outward as δ grows.
+  The 2-D curve is the slice The row at the requested hyperparameter value.
+- **`hyperparameter-hinge-margin`**: Every row is a hinge curve for one margin parameter. The crease where the loss becomes zero sits at m = μ, so a larger margin parameter demands that the correct class win by more before the loss stops.
+  The 2-D curve is the slice The row at the requested hyperparameter value.
+- **`hyperparameter-squared-hinge-margin`**: Every row is a squared-hinge curve for one margin parameter. The flat region starts at m = μ; below it the loss grows quadratically, so moving the margin moves where the bowl begins.
+  The 2-D curve is the slice The row at the requested hyperparameter value.
+- **`three-class-probabilities`**: With three classes, a prediction is a point on a triangle q₁ + q₂ + q₃ = 1; class 1 is the true one. Cross-entropy is −ln q₁, so only the probability on the true class matters: contour lines run parallel to the opposite edge, and how the wrong classes share the rest changes nothing.
+- **`three-class-softmax`**: The true class scores 0; the axes are the two rivals' scores. Softmax cross-entropy acts like a smooth maximum: it mostly listens to the strongest rival, so the surface is a rounded corner. With one rival far below, it reduces to the two-score logistic loss.
+- **`three-class-hinge-weston-watkins`**: Weston–Watkins adds up the violation from every rival that comes within the margin of the true class. Where both rivals compete, both count, so the surface rises twice as steeply along the diagonal z₂ = z₃.
+- **`three-class-hinge-crammer-singer`**: Crammer–Singer counts only the worst rival: the loss is the hinge of the largest rival score. The surface is a fold along z₂ = z₃, where the worst rival switches, and it is half the Weston–Watkins loss where both rivals compete equally.
+
 ## Sweep parameters
 
 | id | name | applies to | default range |
@@ -125,13 +174,15 @@ Served by the `bevaru-mcp` MCP server. Each tool's input type is listed below; i
 
 | tool | group | input | description |
 | ---- | ----- | ----- | ----------- |
-| `describe` | describe | `DescribeRequest` | Return bevaru's capability manifest, or one section of it (losses, models, datasets, views, sweep_parameters, experiences, messages, tools, schemas). |
+| `describe` | describe | `DescribeRequest` | Return bevaru's capability manifest, or one section of it (losses, models, datasets, views, loss_shapes, sweep_parameters, experiences, messages, tools, schemas). |
 | `list_experiences` | describe | `NoArguments` | List the registered experiences: id, title, summary, category, kind, and requirements. |
 | `evaluate_losses` | losses | `LossEvalRequest` | Evaluate losses and their (sub)gradients at points: residuals r = ŷ − y for regression losses, margins m = y·f(x) for classification losses. At most 10000 points. |
+| `sample_loss_shape` | losses | `LossShapeRequest` | Sample a 3-D loss-shape view (see the manifest's loss_shapes) on a grid of at most 101 × 101: the axes, every loss value, which values were clipped at the cap, the caption, and the slice that equals the 2-D loss curve. |
 | `build_dataset` | datasets | `DatasetViewRequest` | Build a dataset and return its displayed coordinates, class labels, axis names, and (for PCA) explained variance. At most 5000 points are returned. |
 | `train` | training | `TrainRequest` | Train one model on a dataset until it converges or reaches its step budget (at most 100000 steps). Returns the loss trajectory (at most 500 points), final weights and bias, status, and support vectors for SVMs. |
 | `sweep` | sweeps | `SweepToolRequest` | Train to convergence at each value of one hyperparameter (2 to 50 values) and return each solution's weights, bias, objective, and support-vector count. |
 | `render_loss_chart` | charts | `LossChartRequest` | Render losses against their argument as a PNG chart. |
+| `render_loss_shape` | charts | `LossShapeRenderRequest` | Render a 3-D loss-shape view as a PNG surface, coloured cool to warm by height, with labelled axes and an optional camera azimuth and elevation. |
 | `render_training_chart` | charts | `TrainRequest` | Train one model and render its training objective by step as a PNG chart. |
 | `app_list_experiences` | app-control | `NoArguments` | List the experiences registered in the running app. *(running app only)* |
 | `app_enter_experience` | app-control | `EnterRequest` | Start an experience in the running app by id, leaving the current one. *(running app only)* |

@@ -2,6 +2,7 @@
 //! independent of any protocol. The MCP server and the remote hooks call
 //! these, so every transport validates and computes the same way.
 
+use bevaru_core::shapes::{ShapeView, SurfaceGrid};
 use bevaru_core::{LossKind, LossParams, Status, Task, Trainer, TrainerConfig};
 use bevy::math::UVec2;
 use serde::{Deserialize, Serialize};
@@ -9,7 +10,8 @@ use serde_json::Value;
 
 use super::api::{
     ApiError, DatasetViewRequest, DescribeRequest, ExperimentRequest, LossChartRequest,
-    SweepToolRequest, TrainRequest, TrainerRequest,
+    LossShapeRenderRequest, LossShapeRequest, ShapeQuery, SweepToolRequest, TrainRequest,
+    TrainerRequest,
 };
 use super::{Manifest, argument};
 use crate::charts::{LineChart, Series, loss_curve_chart};
@@ -20,6 +22,7 @@ pub const MAX_STEPS: usize = 100_000;
 pub const MAX_TRAJECTORY_POINTS: usize = 500;
 pub const MAX_DATASET_POINTS: usize = 5_000;
 pub const CHART_SIZE: UVec2 = UVec2::new(640, 400);
+pub const SHAPE_SIZE: UVec2 = UVec2::new(900, 680);
 
 /// The manifest, or one section of it.
 pub fn describe(manifest: &Manifest, req: &DescribeRequest) -> Result<Value, ApiError> {
@@ -401,6 +404,171 @@ pub fn render_loss_chart(req: &LossChartRequest) -> Result<Vec<u8>, ApiError> {
     png(&loss_curve_chart(task, &losses, &params, &[], range))
 }
 
+/// One input axis of a sampled loss shape: its sample coordinates.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShapeAxisSamples {
+    pub symbol: String,
+    pub name: String,
+    pub values: Vec<f64>,
+}
+
+/// The slice of a surface that is the familiar 2-D loss curve.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShapeSlice {
+    pub description: String,
+    /// What the 2-D curve is a function of: "residual" or "margin".
+    pub argument: String,
+    /// `[x, y, argument, loss]` along the slice: where it lies on the
+    /// surface, and the 2-D curve's argument and value there.
+    pub points: Vec<[f64; 4]>,
+}
+
+/// A loss-shape view sampled on a grid.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LossShapeSample {
+    pub view: String,
+    pub title: String,
+    pub caption: String,
+    pub x: ShapeAxisSamples,
+    pub y: ShapeAxisSamples,
+    pub height_label: String,
+    /// `values[row][column]` is the loss at `(x.values[column], y.values[row])`;
+    /// `null` off the domain (outside the probability triangle).
+    pub values: Vec<Vec<Option<f64>>>,
+    /// `[row, column]` of every value capped at `cap`.
+    pub clipped: Vec<[usize; 2]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cap: Option<f64>,
+    pub min: f64,
+    pub max: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slice: Option<ShapeSlice>,
+}
+
+fn sample_grid(query: &ShapeQuery) -> Result<SurfaceGrid, ApiError> {
+    query
+        .view
+        .sample(&query.params, query.resolution)
+        .map_err(|e| ApiError::new("", e.to_string()))
+}
+
+fn axis_values(a: &bevaru_core::shapes::Axis) -> Vec<f64> {
+    (0..a.n).map(|i| a.at(i)).collect()
+}
+
+/// Sample a loss-shape view: every value is the library's loss at that point.
+pub fn sample_loss_shape(req: &LossShapeRequest) -> Result<LossShapeSample, ApiError> {
+    let query = ShapeQuery::try_from(req)?;
+    let grid = sample_grid(&query)?;
+    let view = query.view;
+    let (nx, ny) = (grid.x.n, grid.y.n);
+    let values = (0..ny)
+        .map(|row| (0..nx).map(|column| grid.value(column, row)).collect())
+        .collect();
+    let clipped = (0..ny)
+        .flat_map(|row| (0..nx).map(move |column| [row, column]))
+        .filter(|&[row, column]| grid.is_clipped(column, row))
+        .collect();
+    let slice = view.slice().and_then(|s| {
+        Some(ShapeSlice {
+            description: super::slice_description(s).into(),
+            argument: argument(*view.losses().first()?).into(),
+            points: view.slice_points(&query.params, query.resolution)?,
+        })
+    });
+    Ok(LossShapeSample {
+        view: view.id().into(),
+        title: view.title().into(),
+        caption: view.caption().into(),
+        x: ShapeAxisSamples {
+            symbol: grid.x.symbol.clone(),
+            name: grid.x.name.clone(),
+            values: axis_values(&grid.x),
+        },
+        y: ShapeAxisSamples {
+            symbol: grid.y.symbol.clone(),
+            name: grid.y.name.clone(),
+            values: axis_values(&grid.y),
+        },
+        height_label: grid.height_label.clone(),
+        values,
+        clipped,
+        cap: grid.cap,
+        min: grid.min,
+        max: grid.max,
+        slice,
+    })
+}
+
+/// Render a loss-shape view as a 3-D surface PNG with ruviz, coloured with
+/// the interactive view's cool-to-warm colormap. Off-domain samples (outside
+/// the probability triangle) are gaps, so that view keeps a triangular base.
+pub fn render_loss_shape(req: &LossShapeRenderRequest) -> Result<Vec<u8>, ApiError> {
+    let query = ShapeQuery::try_from(&req.shape())?;
+    let azimuth = req.azimuth.unwrap_or(-60.0);
+    let elevation = req.elevation.unwrap_or(30.0);
+    if !azimuth.is_finite() {
+        return Err(ApiError::new(
+            "azimuth",
+            format!("must be finite, got {azimuth}"),
+        ));
+    }
+    if !(elevation.is_finite() && (-90.0..=90.0).contains(&elevation)) {
+        return Err(ApiError::new(
+            "elevation",
+            format!("must be −90 to 90, got {elevation}"),
+        ));
+    }
+    let grid = sample_grid(&query)?;
+    let (x, y) = (axis_values(&grid.x), axis_values(&grid.y));
+    let triangle = query.view == ShapeView::ThreeClassProbabilities;
+    // ruviz drops every cell that touches a gap. On the triangle, the cells
+    // along the edge q₁ = 0 would then leave lone spikes up to the cap; the
+    // loss there is unbounded, so samples within one cell beyond the edge
+    // are drawn at the cap, making the edge a solid wall.
+    let step = (grid.x.max - grid.x.min) / (grid.x.n - 1) as f64;
+    let z: Vec<Vec<f64>> = (0..grid.y.n)
+        .map(|row| {
+            (0..grid.x.n)
+                .map(|column| match (grid.value(column, row), grid.cap) {
+                    (Some(v), _) => v,
+                    (None, Some(cap)) if triangle && x[column] + y[row] <= 1.0 + 1.001 * step => {
+                        cap
+                    }
+                    (None, _) => f64::NAN,
+                })
+                .collect()
+        })
+        .collect();
+    let mut title = if triangle {
+        // Drawn on its right-triangle base, so say what the third axis is.
+        "Three-class cross-entropy, q₁ = 1 − q₂ − q₃".to_string()
+    } else {
+        query.view.title().to_string()
+    };
+    if let Some(cap) = grid.cap.filter(|_| grid.clipped.iter().any(|&c| c)) {
+        title.push_str(&format!(" (clipped at {cap})"));
+    }
+    let zlabel = grid.height_label.clone();
+    let top = if grid.max > grid.min {
+        grid.max
+    } else {
+        grid.min + 1.0
+    };
+    ruviz::surface(&x, &y, &z)
+        .cmap(ruviz::render::ColorMap::coolwarm())
+        .title(title)
+        .xlabel(format!("{} — {}", grid.x.symbol, grid.x.name))
+        .ylabel(format!("{} — {}", grid.y.symbol, grid.y.name))
+        .zlabel(zlabel)
+        .zlim(grid.min, top)
+        .azimuth_deg(azimuth as f32)
+        .elevation_deg(elevation as f32)
+        .size_px(SHAPE_SIZE.x, SHAPE_SIZE.y)
+        .render_png_bytes()
+        .map_err(|e| ApiError::new("", format!("rendering failed: {e}")))
+}
+
 /// Train one model and chart its objective by step, as a PNG.
 pub fn render_training_chart(req: &TrainRequest) -> Result<Vec<u8>, ApiError> {
     let result = train(req)?;
@@ -578,5 +746,122 @@ mod tests {
         let d = downsample(&pts, 500);
         assert!(d.len() <= 500);
         assert_eq!(d.last().unwrap().0, 2000);
+    }
+
+    fn shape(view: &str) -> LossShapeRequest {
+        LossShapeRequest {
+            view: view.into(),
+            huber_delta: None,
+            margin: None,
+            resolution: None,
+            entropy_removed: None,
+        }
+    }
+
+    fn render(view: &str) -> LossShapeRenderRequest {
+        LossShapeRenderRequest {
+            view: view.into(),
+            huber_delta: None,
+            margin: None,
+            resolution: None,
+            entropy_removed: None,
+            azimuth: None,
+            elevation: None,
+        }
+    }
+
+    #[test]
+    fn cross_entropy_sample_has_the_entropy_valley() {
+        let s = sample_loss_shape(&LossShapeRequest {
+            resolution: Some(21),
+            ..shape("probability-vs-truth-cross-entropy")
+        })
+        .unwrap();
+        assert_eq!((s.x.values.len(), s.y.values.len()), (21, 21));
+        assert_eq!(s.values.len(), 21);
+        assert!(s.values.iter().all(|r| r.len() == 21));
+        assert_eq!(s.cap, Some(8.0));
+        assert!(!s.clipped.is_empty() && !s.caption.is_empty());
+        // Along q = p the value is H(p). The q axis starts at ε, so compare
+        // where the two axes' samples coincide in value.
+        let mut checked = 0;
+        for (column, &p) in s.x.values.iter().enumerate() {
+            for (row, &q) in s.y.values.iter().enumerate() {
+                if (p - q).abs() < 1e-12 {
+                    let h = bevaru_core::shapes::entropy(p);
+                    assert!((s.values[row][column].unwrap() - h).abs() < 1e-9);
+                    checked += 1;
+                }
+            }
+        }
+        assert!(checked > 0, "some samples lie on q = p");
+        let slice = s.slice.unwrap();
+        assert_eq!(slice.argument, "margin");
+        assert_eq!(slice.points.len(), 21);
+    }
+
+    #[test]
+    fn shape_requests_name_the_bad_field() {
+        let err = sample_loss_shape(&shape("nope")).unwrap_err();
+        assert_eq!(err.field, "view");
+        assert!(err.message.contains("two-scores-hinge"));
+        let err = sample_loss_shape(&LossShapeRequest {
+            resolution: Some(102),
+            ..shape("two-scores-hinge")
+        })
+        .unwrap_err();
+        assert_eq!(err.field, "resolution");
+        let err = sample_loss_shape(&LossShapeRequest {
+            margin: Some(-1.0),
+            ..shape("two-scores-hinge")
+        })
+        .unwrap_err();
+        assert_eq!(err.field, "margin");
+        let err = sample_loss_shape(&LossShapeRequest {
+            entropy_removed: Some(true),
+            ..shape("two-scores-hinge")
+        })
+        .unwrap_err();
+        assert_eq!(err.field, "entropy_removed");
+        let err = render_loss_shape(&LossShapeRenderRequest {
+            elevation: Some(120.0),
+            ..render("two-scores-hinge")
+        })
+        .unwrap_err();
+        assert_eq!(err.field, "elevation");
+    }
+
+    #[test]
+    fn triangle_samples_are_null_off_the_simplex() {
+        let s = sample_loss_shape(&LossShapeRequest {
+            resolution: Some(11),
+            ..shape("three-class-probabilities")
+        })
+        .unwrap();
+        for (row, &q3) in s.y.values.iter().enumerate() {
+            for (column, &q2) in s.x.values.iter().enumerate() {
+                let on = q2 + q3 <= 1.0 + 1e-9;
+                assert_eq!(s.values[row][column].is_some(), on, "({q2}, {q3})");
+            }
+        }
+    }
+
+    #[test]
+    fn loss_shapes_render_headlessly_as_png() {
+        for view in [
+            "probability-vs-truth-cross-entropy",
+            "three-class-probabilities",
+        ] {
+            let png = render_loss_shape(&LossShapeRenderRequest {
+                resolution: Some(31),
+                ..render(view)
+            })
+            .unwrap();
+            assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n", "{view}");
+            if let Some(dir) = std::env::var_os("BEVARU_DUMP_SHAPES") {
+                std::fs::write(std::path::Path::new(&dir).join(format!("{view}.png")), &png)
+                    .unwrap();
+            }
+        }
     }
 }

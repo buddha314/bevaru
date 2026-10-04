@@ -24,13 +24,13 @@
 
 ## 4. Agents
 
-- [ ] 4.1 Add the `loss_shapes` manifest section from `ShapeView::ALL` (exhaustive), and the `LossShapeRequest` wire type with its schema
-- [ ] 4.2 Add the `sample_loss_shape` tool to the catalog, `agent::run`, and the `bevaru-mcp` dispatch; regenerate `docs/agents/capabilities.*`
-- [ ] 4.3 Enable ruviz's `3d` feature; verify its `surface` API (colormap, camera angles, gaps for masked samples); add `render_loss_shape` to the catalog, `agent::run`, and the MCP dispatch
-- [ ] 4.4 Tests: one manifest entry per view; the sampling tool's cross-entropy grid has the H(p) diagonal; an unknown view lists valid ids; the rendering tool returns a PNG headlessly
+- [x] 4.1 Add the `loss_shapes` manifest section from `ShapeView::ALL` (exhaustive), and the `LossShapeRequest` wire type with its schema
+- [x] 4.2 Add the `sample_loss_shape` tool to the catalog, `agent::run`, and the `bevaru-mcp` dispatch; regenerate `docs/agents/capabilities.*`
+- [x] 4.3 Enable ruviz's `3d` feature; verify its `surface` API (colormap, camera angles, gaps for masked samples); add `render_loss_shape` to the catalog, `agent::run`, and the MCP dispatch
+- [x] 4.4 Tests: one manifest entry per view; the sampling tool's cross-entropy grid has the H(p) diagonal; an unknown view lists valid ids; the rendering tool returns a PNG headlessly
 
 ## 5. Docs and verification
 
-- [ ] 5.1 README: a "Loss shapes in 3D" section with a screenshot, linked from the lobby section
-- [ ] 5.2 Check that it compiles with `scripts/check.sh`; run the test suites once with `scripts/check.sh --tests` before merging (not on every push)
+- [x] 5.1 README: a "Loss shapes in 3D" section with a screenshot, linked from the lobby section
+- [x] 5.2 Check that it compiles with `scripts/check.sh`; run the test suites once with `scripts/check.sh --tests` before merging (not on every push)
 - [ ] 5.3 Look at every view in a real window: shapes, captions, slice, probe, legend, and resolution changes

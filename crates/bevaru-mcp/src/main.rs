@@ -84,7 +84,7 @@ Invalid input returns a tool error naming the field and its valid range.";
 
 /// Every tool this server can run (the app-control tools need a running app
 /// and arrive with the remote hooks).
-const SERVED: [&str; 8] = [
+const SERVED: [&str; 10] = [
     "describe",
     "list_experiences",
     "evaluate_losses",
@@ -93,6 +93,8 @@ const SERVED: [&str; 8] = [
     "sweep",
     "render_loss_chart",
     "render_training_chart",
+    "sample_loss_shape",
+    "render_loss_shape",
 ];
 
 /// App-control tools and the remote method each one calls.
@@ -150,6 +152,8 @@ fn dispatch(manifest: &Manifest, name: &str, args: JsonObject) -> Result<Output,
         "sweep" => json(run::sweep(&parse(args)?)?),
         "render_loss_chart" => Ok(Output::Png(run::render_loss_chart(&parse(args)?)?)),
         "render_training_chart" => Ok(Output::Png(run::render_training_chart(&parse(args)?)?)),
+        "sample_loss_shape" => json(run::sample_loss_shape(&parse(args)?)?),
+        "render_loss_shape" => Ok(Output::Png(run::render_loss_shape(&parse(args)?)?)),
         other => Err(ApiError::new("name", format!("unknown tool {other:?}"))),
     }
 }

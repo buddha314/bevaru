@@ -52,7 +52,8 @@ A window opens on the **lobby**:
 | `cargo run --release -- <id>` | Open one experience directly, skipping the lobby (e.g. `iris-svm`). `Esc` still returns to the lobby. |
 | `cargo run --release --features mnist` | Also enable the MNIST experience. Its first start downloads about 11 MB and caches it; set `BEVARU_MNIST_DIR` to use files you already have. |
 | `cargo run --release --example iris_svm` | The examples open the same experiences directly. Also available: `regression_mse_vs_mae`, `loss_curves`, `mnist_svm` (needs `--features mnist`) and `ml_interactive` (the sigmoid). |
-| `cargo run --release --example loss_surface` | Orbit a 3-D objective surface for hinge, squared hinge, or logistic binary cross-entropy; change C, margin, or L2 strength. |
+| `cargo run --release --example loss_shapes` | Open [Loss shapes in 3D](#loss-shapes-in-3d): every loss as a surface over two inputs. |
+| `cargo run --release --example loss_surface` | Open Training objective in 3D: the objective over a model's weight and bias for hinge, squared hinge, or logistic loss; change C, margin, or L2 strength. |
 
 ### Troubleshooting
 
@@ -75,6 +76,8 @@ Every experience, and how to open it directly:
 | MNIST: 3 vs 8 | `cargo run --release --features mnist -- mnist-svm` | 3 vs 8 in all 784 pixels. The scene shows the PCA view; a 28 × 28 image shows the weights the model learned. Without the `mnist` feature, the card is shown disabled. |
 | Outliers: MSE vs MAE vs Huber | `cargo run --release -- regression-mse-vs-mae` | 15% outliers. MSE is dragged toward them, MAE ignores them, and Huber lands in between depending on δ. |
 | Every loss, side by side | `cargo run --release -- loss-curves` | Every loss plotted against margin or residual. Edit δ and the hinge margin live while an SVM trains. |
+| Loss shapes in 3D | `cargo run --release -- loss-shapes` | Every loss as a 3-D surface over two inputs, with its 2-D curve as a highlighted slice. See [Loss shapes in 3D](#loss-shapes-in-3d). |
+| Training objective in 3D | `cargo run --release -- loss-surface` | The training objective over one weight and the bias, for hinge, squared hinge, and logistic loss. |
 | Sigmoid | `cargo run --release -- sigmoid` | The original scaffold: a ruviz sigmoid plot shown as a sprite. |
 
 ![MSE, MAE and Huber fits on data with outliers](docs/images/regression_mse_vs_mae.webp)
@@ -84,6 +87,27 @@ Every experience, and how to open it directly:
 - **Chart panel (right):** loss curves, the training objective, and learned weights.
 - **Mouse:** in 2D, drag to pan and scroll to zoom. In 3D, left-drag to orbit and right-drag to pan.
 - **Keys:** `Space` play/pause · `S` step · `R` reset · `F` frame data · `Esc` back to the lobby · `Ctrl+Q` quit from the lobby (or click **Exit**).
+
+## Loss shapes in 3D
+
+Losses are usually drawn as 2-D curves, but most of the ideas behind them involve *two* quantities. **Loss shapes in 3D** (`cargo run --release -- loss-shapes`) draws each loss as a surface over two inputs students already know, so the idea becomes a shape:
+
+| Family | Axes | Losses | What the shape shows |
+| ------ | ---- | ------ | -------------------- |
+| Prediction vs truth | true y, prediction ŷ | MSE, MAE, Huber | A trough along ŷ = y with the same cross-section everywhere. |
+| Probability vs truth | true p, predicted q | binary cross-entropy | A valley whose floor is the entropy H(p). The **KL** toggle subtracts it, leaving a valley at zero. |
+| Two class scores | correct and other class score | hinge, squared hinge, logistic, 0-1 | Sheets folded along the score gap: flat past the margin, smooth, or a cliff. |
+| Hyperparameter as an axis | residual and δ, margin and μ | Huber, hinge, squared hinge | The whole family of 2-D curves at once. |
+| Three classes | the probability triangle, or two rival scores | cross-entropy, softmax, Weston–Watkins and Crammer–Singer hinges | Only the true class's probability matters; sum versus worst violation. |
+
+![Binary cross-entropy over true and predicted probability, with its caption and the 2-D logistic curve](docs/images/loss_shapes.webp)
+
+- **The 2-D link:** the orange curve on each surface is the slice that equals the familiar 2-D loss curve, shown beside it.
+- **The probe:** point at the surface to read the inputs, the loss, and the downhill (sub)gradient arrow. At kinks it names the subgradient the library uses; on flat regions it says there is no gradient.
+- **Sampling:** every height is the library's own loss function, sampled off the main thread as you change the view, δ, the margin, or the resolution.
+- **Unbounded losses:** cross-entropy heights are clipped at 8, and the clip level is marked.
+
+Agents can get the same views through `bevaru-mcp`. `sample_loss_shape` returns the grid, and `render_loss_shape` returns a PNG.
 
 ## Visual verification walkthrough
 
@@ -98,7 +122,9 @@ Run each experience from the repository root. The first build may take a few min
 
 For a 3-D camera check, run Iris, select **3-D (third feature)**, and click **Load**. Left-drag to orbit, right-drag to pan, and scroll to zoom. Press `F` or click **Frame data** to fit every point in view again. Switch back to 2-D to check **Decision regions**; toggle **SVM margins** in either view.
 
-For the parameterized loss asset, run `cargo run --release --example loss_surface`. Its red X axis is one model weight, green Y is the bias, and blue Z is the training objective (mean loss plus L2 regularization) for eight fixed binary samples. Select **Hinge**, **Squared hinge**, or **Logistic (binary cross-entropy)** in the panel. Change **C** and **hinge margin** for SVM losses or **L2 λ** for logistic loss; the surface and its objective range should update. Left-drag to orbit, right-drag to pan, scroll to zoom, and press `F` to frame it again.
+For the loss shapes, run `cargo run --release -- loss-shapes`. The binary cross-entropy surface should open, with its caption and the logistic curve on the right. Work through every family and loss: each shape should match its caption, the orange slice should match the 2-D curve, and the probe should show a downhill arrow (or "no gradient here" on flat regions). Drag δ or the margin where offered and change the resolution; the surface should update in place.
+
+For the training objective, run `cargo run --release -- loss-surface` (or `--example loss_surface`). Its red X axis is one model weight, green Y is the bias, and blue Z is the training objective (mean loss plus L2 regularization) for eight fixed binary samples. Select **Hinge**, **Squared hinge**, or **Logistic (binary cross-entropy)** in the panel. Change **C** and **hinge margin** for SVM losses or **L2 λ** for logistic loss; the surface and its objective range should update. Left-drag to orbit, right-drag to pan, scroll to zoom, and press `F` to frame it again.
 
 ![A parameterized hinge objective surface over model weight and bias](docs/images/loss_surface.webp)
 

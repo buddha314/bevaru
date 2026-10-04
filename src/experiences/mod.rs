@@ -267,12 +267,19 @@ impl Plugin for ExperiencesPlugin {
             .add_observer(despawn_experience_entities);
         builtin::register(app);
         app.add_plugins(layout::SideInsetsPlugin);
-        // The 3-D surfaces build meshes but need no renderer, so headless apps
-        // run them too (the lobby tests depend on that).
-        app.add_plugins((
-            loss_shapes::LossShapesExperiencePlugin,
-            loss_surface::LossSurfaceExperiencePlugin,
-        ));
+        // The 3-D surfaces need mesh and material assets and gizmos, but no
+        // renderer, so headless apps with those run them too (the lobby tests
+        // do). Apps without them still list them.
+        let world = app.world();
+        if world.contains_resource::<Assets<Mesh>>()
+            && world.contains_resource::<Assets<StandardMaterial>>()
+            && app.is_plugin_added::<bevy::gizmos::GizmoPlugin>()
+        {
+            app.add_plugins((
+                loss_shapes::LossShapesExperiencePlugin,
+                loss_surface::LossSurfaceExperiencePlugin,
+            ));
+        }
         // The sigmoid experience draws a sprite, so it needs a renderer;
         // headless apps still list it.
         if app.is_plugin_added::<bevy::render::RenderPlugin>() {

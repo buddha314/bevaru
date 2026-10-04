@@ -139,6 +139,398 @@
       "title": "Sigmoid"
     }
   ],
+  "loss_shapes": [
+    {
+      "caption": "Loss is zero exactly on the diagonal ŷ = y, where the prediction is right. It depends only on the residual ŷ − y, so the trough looks the same all along the diagonal: a parabola. Big misses cost quadratically more, which is why MSE chases outliers.",
+      "family": "prediction-vs-truth",
+      "family_name": "Prediction vs truth",
+      "height_label": "loss",
+      "hyperparameters": [],
+      "id": "prediction-vs-truth-mse",
+      "losses": [
+        "mse"
+      ],
+      "slice": "y = 0: along the prediction axis, ŷ is the residual.",
+      "title": "Mean squared error over truth and prediction",
+      "x_axis": {
+        "max": 3.0,
+        "min": -3.0,
+        "name": "true value",
+        "symbol": "y"
+      },
+      "y_axis": {
+        "max": 3.0,
+        "min": -3.0,
+        "name": "prediction",
+        "symbol": "ŷ"
+      }
+    },
+    {
+      "caption": "Loss is zero on the diagonal ŷ = y and grows in straight lines either side: a V-shaped trough. The sharp crease at the bottom has no gradient, and every miss costs in proportion to its size, so a few outliers can't dominate.",
+      "family": "prediction-vs-truth",
+      "family_name": "Prediction vs truth",
+      "height_label": "loss",
+      "hyperparameters": [],
+      "id": "prediction-vs-truth-mae",
+      "losses": [
+        "mae"
+      ],
+      "slice": "y = 0: along the prediction axis, ŷ is the residual.",
+      "title": "Mean absolute error over truth and prediction",
+      "x_axis": {
+        "max": 3.0,
+        "min": -3.0,
+        "name": "true value",
+        "symbol": "y"
+      },
+      "y_axis": {
+        "max": 3.0,
+        "min": -3.0,
+        "name": "prediction",
+        "symbol": "ŷ"
+      }
+    },
+    {
+      "caption": "A trough along ŷ = y whose bottom is rounded like MSE within δ of the diagonal and whose walls are straight like MAE beyond it. δ sets where the quadratic part ends: small errors are treated gently, outliers linearly.",
+      "family": "prediction-vs-truth",
+      "family_name": "Prediction vs truth",
+      "height_label": "loss",
+      "hyperparameters": [
+        "huber_delta"
+      ],
+      "id": "prediction-vs-truth-huber",
+      "losses": [
+        "huber"
+      ],
+      "slice": "y = 0: along the prediction axis, ŷ is the residual.",
+      "title": "Huber loss over truth and prediction",
+      "x_axis": {
+        "max": 3.0,
+        "min": -3.0,
+        "name": "true value",
+        "symbol": "y"
+      },
+      "y_axis": {
+        "max": 3.0,
+        "min": -3.0,
+        "name": "prediction",
+        "symbol": "ŷ"
+      }
+    },
+    {
+      "cap": 8.0,
+      "caption": "Loss is high where truth and prediction disagree: predicting q near 0 when p is 1, or near 1 when p is 0, costs without bound (heights are capped). The valley follows q = p, but its floor is the entropy H(p), not zero: even a perfect forecast of a 50/50 outcome pays ln 2. Remove the entropy to see the KL divergence, which is zero exactly when q = p.",
+      "entropy_removable": true,
+      "family": "probability-vs-truth",
+      "family_name": "Probability vs truth",
+      "height_label": "cross-entropy (nats)",
+      "hyperparameters": [],
+      "id": "probability-vs-truth-cross-entropy",
+      "losses": [
+        "logistic"
+      ],
+      "slice": "p = 1: along the predicted-probability axis, with margin m = ln(q / (1 − q)).",
+      "title": "Binary cross-entropy over true and predicted probability",
+      "x_axis": {
+        "max": 1.0,
+        "min": 0.0,
+        "name": "true probability",
+        "symbol": "p"
+      },
+      "y_axis": {
+        "max": 0.9999,
+        "min": 0.0001,
+        "name": "predicted probability",
+        "symbol": "q"
+      }
+    },
+    {
+      "caption": "Hinge loss depends only on the gap z_correct − z_other, so the surface is a sheet folded along that direction. It is flat (zero) once the correct class wins by the margin, and rises linearly when it doesn't: it stops caring about examples it already gets right.",
+      "family": "two-scores",
+      "family_name": "Two class scores",
+      "height_label": "loss",
+      "hyperparameters": [
+        "margin"
+      ],
+      "id": "two-scores-hinge",
+      "losses": [
+        "hinge"
+      ],
+      "slice": "z_other = 0: along the correct-class axis, z_correct is the margin.",
+      "title": "Hinge loss over two class scores",
+      "x_axis": {
+        "max": 4.0,
+        "min": -4.0,
+        "name": "score of the correct class",
+        "symbol": "z_correct"
+      },
+      "y_axis": {
+        "max": 4.0,
+        "min": -4.0,
+        "name": "score of the other class",
+        "symbol": "z_other"
+      }
+    },
+    {
+      "caption": "Like hinge, a sheet folded along the gap between the scores, flat once the correct class wins by the margin. Below the margin it rises quadratically, so badly wrong examples are pushed much harder.",
+      "family": "two-scores",
+      "family_name": "Two class scores",
+      "height_label": "loss",
+      "hyperparameters": [
+        "margin"
+      ],
+      "id": "two-scores-squared-hinge",
+      "losses": [
+        "squared-hinge"
+      ],
+      "slice": "z_other = 0: along the correct-class axis, z_correct is the margin.",
+      "title": "Squared hinge loss over two class scores",
+      "x_axis": {
+        "max": 4.0,
+        "min": -4.0,
+        "name": "score of the correct class",
+        "symbol": "z_correct"
+      },
+      "y_axis": {
+        "max": 4.0,
+        "min": -4.0,
+        "name": "score of the other class",
+        "symbol": "z_other"
+      }
+    },
+    {
+      "caption": "A smooth version of hinge: it depends only on the gap z_correct − z_other, never quite reaches zero, and keeps nudging even confident correct answers. This is softmax cross-entropy for two classes, and the same loss as binary cross-entropy on probabilities.",
+      "family": "two-scores",
+      "family_name": "Two class scores",
+      "height_label": "loss",
+      "hyperparameters": [],
+      "id": "two-scores-logistic",
+      "losses": [
+        "logistic"
+      ],
+      "slice": "z_other = 0: along the correct-class axis, z_correct is the margin.",
+      "title": "Logistic (softmax) loss over two class scores",
+      "x_axis": {
+        "max": 4.0,
+        "min": -4.0,
+        "name": "score of the correct class",
+        "symbol": "z_correct"
+      },
+      "y_axis": {
+        "max": 4.0,
+        "min": -4.0,
+        "name": "score of the other class",
+        "symbol": "z_other"
+      }
+    },
+    {
+      "caption": "A cliff: loss is 1 wherever the other class scores at least as high, and 0 wherever the correct class wins. It counts mistakes exactly, but it is flat everywhere else, so it has no gradient to learn from. Smooth losses exist because of this.",
+      "family": "two-scores",
+      "family_name": "Two class scores",
+      "height_label": "loss",
+      "hyperparameters": [],
+      "id": "two-scores-zero-one",
+      "losses": [
+        "zero-one"
+      ],
+      "slice": "z_other = 0: along the correct-class axis, z_correct is the margin.",
+      "title": "0-1 loss over two class scores",
+      "x_axis": {
+        "max": 4.0,
+        "min": -4.0,
+        "name": "score of the correct class",
+        "symbol": "z_correct"
+      },
+      "y_axis": {
+        "max": 4.0,
+        "min": -4.0,
+        "name": "score of the other class",
+        "symbol": "z_other"
+      }
+    },
+    {
+      "caption": "Every row is a Huber curve for one δ. Small δ makes Huber behave like a scaled absolute error; large δ makes it a squared error over the whole range. The bend where the parabola meets the straight walls slides outward as δ grows.",
+      "family": "hyperparameter",
+      "family_name": "Hyperparameter as an axis",
+      "height_label": "loss",
+      "hyperparameters": [
+        "huber_delta"
+      ],
+      "id": "hyperparameter-huber-delta",
+      "losses": [
+        "huber"
+      ],
+      "slice": "The row at the requested hyperparameter value.",
+      "title": "Huber loss over residual and δ",
+      "x_axis": {
+        "max": 3.0,
+        "min": -3.0,
+        "name": "residual ŷ − y",
+        "symbol": "r"
+      },
+      "y_axis": {
+        "max": 3.0,
+        "min": 0.1,
+        "name": "Huber δ",
+        "symbol": "δ"
+      }
+    },
+    {
+      "caption": "Every row is a hinge curve for one margin parameter. The crease where the loss becomes zero sits at m = μ, so a larger margin parameter demands that the correct class win by more before the loss stops.",
+      "family": "hyperparameter",
+      "family_name": "Hyperparameter as an axis",
+      "height_label": "loss",
+      "hyperparameters": [
+        "margin"
+      ],
+      "id": "hyperparameter-hinge-margin",
+      "losses": [
+        "hinge"
+      ],
+      "slice": "The row at the requested hyperparameter value.",
+      "title": "Hinge loss over margin and the margin parameter",
+      "x_axis": {
+        "max": 3.0,
+        "min": -3.0,
+        "name": "margin y·f(x)",
+        "symbol": "m"
+      },
+      "y_axis": {
+        "max": 3.0,
+        "min": 0.1,
+        "name": "margin parameter",
+        "symbol": "μ"
+      }
+    },
+    {
+      "caption": "Every row is a squared-hinge curve for one margin parameter. The flat region starts at m = μ; below it the loss grows quadratically, so moving the margin moves where the bowl begins.",
+      "family": "hyperparameter",
+      "family_name": "Hyperparameter as an axis",
+      "height_label": "loss",
+      "hyperparameters": [
+        "margin"
+      ],
+      "id": "hyperparameter-squared-hinge-margin",
+      "losses": [
+        "squared-hinge"
+      ],
+      "slice": "The row at the requested hyperparameter value.",
+      "title": "Squared hinge loss over margin and the margin parameter",
+      "x_axis": {
+        "max": 3.0,
+        "min": -3.0,
+        "name": "margin y·f(x)",
+        "symbol": "m"
+      },
+      "y_axis": {
+        "max": 3.0,
+        "min": 0.1,
+        "name": "margin parameter",
+        "symbol": "μ"
+      }
+    },
+    {
+      "cap": 8.0,
+      "caption": "With three classes, a prediction is a point on a triangle q₁ + q₂ + q₃ = 1; class 1 is the true one. Cross-entropy is −ln q₁, so only the probability on the true class matters: contour lines run parallel to the opposite edge, and how the wrong classes share the rest changes nothing.",
+      "family": "three-class",
+      "family_name": "Three classes",
+      "height_label": "cross-entropy (nats)",
+      "hyperparameters": [],
+      "id": "three-class-probabilities",
+      "losses": [
+        "logistic"
+      ],
+      "title": "Three-class cross-entropy on the probability triangle",
+      "x_axis": {
+        "max": 1.0,
+        "min": 0.0,
+        "name": "probability of class 2",
+        "symbol": "q₂"
+      },
+      "y_axis": {
+        "max": 1.0,
+        "min": 0.0,
+        "name": "probability of class 3",
+        "symbol": "q₃"
+      }
+    },
+    {
+      "caption": "The true class scores 0; the axes are the two rivals' scores. Softmax cross-entropy acts like a smooth maximum: it mostly listens to the strongest rival, so the surface is a rounded corner. With one rival far below, it reduces to the two-score logistic loss.",
+      "family": "three-class",
+      "family_name": "Three classes",
+      "height_label": "loss",
+      "hyperparameters": [],
+      "id": "three-class-softmax",
+      "losses": [
+        "logistic"
+      ],
+      "title": "Softmax cross-entropy over two rival scores",
+      "x_axis": {
+        "max": 4.0,
+        "min": -4.0,
+        "name": "score of rival class 2",
+        "symbol": "z₂"
+      },
+      "y_axis": {
+        "max": 4.0,
+        "min": -4.0,
+        "name": "score of rival class 3",
+        "symbol": "z₃"
+      }
+    },
+    {
+      "caption": "Weston–Watkins adds up the violation from every rival that comes within the margin of the true class. Where both rivals compete, both count, so the surface rises twice as steeply along the diagonal z₂ = z₃.",
+      "family": "three-class",
+      "family_name": "Three classes",
+      "height_label": "loss",
+      "hyperparameters": [
+        "margin"
+      ],
+      "id": "three-class-hinge-weston-watkins",
+      "losses": [
+        "hinge"
+      ],
+      "title": "Weston–Watkins hinge over two rival scores",
+      "x_axis": {
+        "max": 4.0,
+        "min": -4.0,
+        "name": "score of rival class 2",
+        "symbol": "z₂"
+      },
+      "y_axis": {
+        "max": 4.0,
+        "min": -4.0,
+        "name": "score of rival class 3",
+        "symbol": "z₃"
+      }
+    },
+    {
+      "caption": "Crammer–Singer counts only the worst rival: the loss is the hinge of the largest rival score. The surface is a fold along z₂ = z₃, where the worst rival switches, and it is half the Weston–Watkins loss where both rivals compete equally.",
+      "family": "three-class",
+      "family_name": "Three classes",
+      "height_label": "loss",
+      "hyperparameters": [
+        "margin"
+      ],
+      "id": "three-class-hinge-crammer-singer",
+      "losses": [
+        "hinge"
+      ],
+      "title": "Crammer–Singer hinge over two rival scores",
+      "x_axis": {
+        "max": 4.0,
+        "min": -4.0,
+        "name": "score of rival class 2",
+        "symbol": "z₂"
+      },
+      "y_axis": {
+        "max": 4.0,
+        "min": -4.0,
+        "name": "score of rival class 3",
+        "symbol": "z₃"
+      }
+    }
+  ],
   "losses": [
     {
       "argument": "residual",
@@ -878,7 +1270,7 @@
       "description": "Which part of the manifest to return.",
       "properties": {
         "section": {
-          "description": "One of losses, models, datasets, views, sweep_parameters,\nexperiences, messages, tools, schemas; omit for everything.",
+          "description": "One of losses, models, datasets, views, loss_shapes,\nsweep_parameters, experiences, messages, tools, schemas; omit for\neverything.",
           "type": "string"
         }
       },
@@ -1275,6 +1667,85 @@
         "points"
       ],
       "title": "LossEvalRequest",
+      "type": "object"
+    },
+    "LossShapeRenderRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "A 3-D loss-shape view to render as a PNG surface.",
+      "properties": {
+        "azimuth": {
+          "description": "Camera azimuth in degrees (default −60).",
+          "format": "double",
+          "type": "number"
+        },
+        "elevation": {
+          "description": "Camera elevation in degrees, −90 to 90 (default 30).",
+          "format": "double",
+          "type": "number"
+        },
+        "entropy_removed": {
+          "type": "boolean"
+        },
+        "huber_delta": {
+          "format": "double",
+          "type": "number"
+        },
+        "margin": {
+          "format": "double",
+          "type": "number"
+        },
+        "resolution": {
+          "description": "Samples per axis, 3 to 101 (default 41).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "view": {
+          "description": "View id, as for `sample_loss_shape`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "view"
+      ],
+      "title": "LossShapeRenderRequest",
+      "type": "object"
+    },
+    "LossShapeRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "A 3-D loss-shape view to sample: the loss over two inputs, on a grid.",
+      "properties": {
+        "entropy_removed": {
+          "description": "Cross-entropy only: subtract the entropy H(p), giving the KL divergence.",
+          "type": "boolean"
+        },
+        "huber_delta": {
+          "description": "Huber δ (> 0), for views that use it.",
+          "format": "double",
+          "type": "number"
+        },
+        "margin": {
+          "description": "Hinge margin (> 0), for views that use it.",
+          "format": "double",
+          "type": "number"
+        },
+        "resolution": {
+          "description": "Samples per axis, 3 to 101 (default 41). Odd values put the diagonal\nand zero lines exactly on samples.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "view": {
+          "description": "View id, e.g. `probability-vs-truth-cross-entropy`; the manifest's\n`loss_shapes` section lists every view.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "view"
+      ],
+      "title": "LossShapeRequest",
       "type": "object"
     },
     "NoArguments": {
@@ -2211,7 +2682,7 @@
   ],
   "tools": [
     {
-      "description": "Return bevaru's capability manifest, or one section of it (losses, models, datasets, views, sweep_parameters, experiences, messages, tools, schemas).",
+      "description": "Return bevaru's capability manifest, or one section of it (losses, models, datasets, views, loss_shapes, sweep_parameters, experiences, messages, tools, schemas).",
       "group": "describe",
       "input_type": "DescribeRequest",
       "name": "describe"
@@ -2227,6 +2698,12 @@
       "group": "losses",
       "input_type": "LossEvalRequest",
       "name": "evaluate_losses"
+    },
+    {
+      "description": "Sample a 3-D loss-shape view (see the manifest's loss_shapes) on a grid of at most 101 × 101: the axes, every loss value, which values were clipped at the cap, the caption, and the slice that equals the 2-D loss curve.",
+      "group": "losses",
+      "input_type": "LossShapeRequest",
+      "name": "sample_loss_shape"
     },
     {
       "description": "Build a dataset and return its displayed coordinates, class labels, axis names, and (for PCA) explained variance. At most 5000 points are returned.",
@@ -2251,6 +2728,12 @@
       "group": "charts",
       "input_type": "LossChartRequest",
       "name": "render_loss_chart"
+    },
+    {
+      "description": "Render a 3-D loss-shape view as a PNG surface, coloured cool to warm by height, with labelled axes and an optional camera azimuth and elevation.",
+      "group": "charts",
+      "input_type": "LossShapeRenderRequest",
+      "name": "render_loss_shape"
     },
     {
       "description": "Train one model and render its training objective by step as a PNG chart.",

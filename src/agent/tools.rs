@@ -77,7 +77,7 @@ pub fn tools() -> Vec<ToolInfo> {
         tool::<DescribeRequest>(
             "describe",
             "describe",
-            "Return bevaru's capability manifest, or one section of it (losses, models, datasets, views, sweep_parameters, experiences, messages, tools, schemas).",
+            "Return bevaru's capability manifest, or one section of it (losses, models, datasets, views, loss_shapes, sweep_parameters, experiences, messages, tools, schemas).",
         ),
         tool::<NoArguments>(
             "list_experiences",
@@ -88,6 +88,11 @@ pub fn tools() -> Vec<ToolInfo> {
             "evaluate_losses",
             "losses",
             "Evaluate losses and their (sub)gradients at points: residuals r = ŷ − y for regression losses, margins m = y·f(x) for classification losses. At most 10000 points.",
+        ),
+        tool::<LossShapeRequest>(
+            "sample_loss_shape",
+            "losses",
+            "Sample a 3-D loss-shape view (see the manifest's loss_shapes) on a grid of at most 101 × 101: the axes, every loss value, which values were clipped at the cap, the caption, and the slice that equals the 2-D loss curve.",
         ),
         tool::<DatasetViewRequest>(
             "build_dataset",
@@ -108,6 +113,11 @@ pub fn tools() -> Vec<ToolInfo> {
             "render_loss_chart",
             "charts",
             "Render losses against their argument as a PNG chart.",
+        ),
+        tool::<LossShapeRenderRequest>(
+            "render_loss_shape",
+            "charts",
+            "Render a 3-D loss-shape view as a PNG surface, coloured cool to warm by height, with labelled axes and an optional camera azimuth and elevation.",
         ),
         tool::<TrainRequest>(
             "render_training_chart",
