@@ -55,7 +55,7 @@ bevaru is meant to be used by many client applications, most of them likely buil
   - `rmcp` and `tokio` in `bevaru-mcp` only;
   - Bevy's `bevy_remote` feature behind `remote`.
 - **Docs:** new `AGENTS.md`, `llms.txt`, and `docs/agents/`. The README gains an "For agents" section.
-- **CI:** the existing test job runs the freshness test; a build step checks `bevaru-mcp` and `--features remote`.
+- **Checks:** hosted CI was removed for cost. `scripts/check.sh` checks that everything compiles, and `scripts/check.sh --tests` also runs the test suites, including the freshness test.
 - **Security:**
   - the MCP server is stdio-only and local;
   - the remote feature is off by default and binds to localhost;

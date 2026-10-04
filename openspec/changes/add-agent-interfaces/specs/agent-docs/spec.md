@@ -25,7 +25,7 @@ The repository SHALL provide:
 - **THEN** both reference files are rewritten from the current code, and running it again produces no changes
 
 ### Requirement: Docs stay current
-A test SHALL fail when any generated artifact (`capabilities.json`, `capabilities.md`, or a code block included into a doc from a compiled example) differs from what the current code generates. Its failure message SHALL name the stale files and the command that regenerates them. The test SHALL run in CI.
+A test SHALL fail when any generated artifact (`capabilities.json`, `capabilities.md`, or a code block included into a doc from a compiled example) differs from what the current code generates. Its failure message SHALL name the stale files and the command that regenerates them. The test SHALL run as part of the project's test suite (`cargo test`, or `scripts/check.sh --tests`).
 
 #### Scenario: Capability added without regenerating
 - **WHEN** a developer registers a new experience, or adds a loss, and doesn't regenerate the docs

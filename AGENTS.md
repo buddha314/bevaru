@@ -23,12 +23,14 @@ bevaru is a Bevy plugin for interactive, animated machine-learning visualization
 cargo build --workspace                       # build everything
 cargo test --workspace                        # all tests (headless; no window or GPU needed)
 cargo fmt --all --check                       # formatting
-cargo clippy --workspace --all-targets --features mnist -- -D warnings   # lint, as CI does
+cargo clippy --workspace --all-targets --features mnist -- -D warnings   # lint
 cargo run -p bevaru-mcp -- gen-docs           # regenerate docs/agents/ reference files
 cargo run --release                           # the app (needs a display and a GPU)
 cargo run --features remote -- --remote       # the app, controllable over BRP on 127.0.0.1:15702
 cargo test -p bevaru --features remote        # also runs the remote-method tests
 ```
+
+**There is no hosted CI.** Before pushing, run `scripts/check.sh`. It checks that everything compiles: formatting, plus clippy on every target (including tests) for both feature sets. It does not run the test suites, which train models and simulate the app. Run those with `scripts/check.sh --tests` when you change behaviour, and always after changing docs, the agent manifest, or anything listed under "Rules that tests enforce".
 
 On Linux, building needs `pkg-config` and the udev, wayland and xkbcommon development packages (see the README). The first build compiles Bevy and takes several minutes.
 
@@ -45,6 +47,6 @@ On Linux, building needs `pkg-config` and the udev, wayland and xkbcommon develo
 
 - **Bevy 0.19 and bevy_egui 0.42 are newer than many models' training data.** Buffered events are `Message`s (`MessageReader` / `MessageWriter`); `Event` is for observers. egui panels are `egui::Panel` shown inside a `Ui`. When unsure of an API, read the crate source under `~/.cargo/registry/src/` rather than guessing.
 - **Test headlessly.** `src/lobby_tests.rs` shows how to run the real scene and chart plugins without a GPU (`MinimalPlugins`, `AssetPlugin`, `GizmoPlugin`, and the mesh, material, and image assets).
-- **Math belongs in `bevaru-core`**, which must not depend on Bevy (CI checks this). Numeric code there is optimized even in dev builds.
+- **Math belongs in `bevaru-core`**, which must not depend on Bevy (`scripts/check.sh --tests` checks this). Numeric code there is optimized even in dev builds.
 - **Ids are kebab-case and stable:** loss, model, sweep-parameter, and experience ids are part of the agent API. Don't rename them.
 - **Specs first for larger changes:** propose with OpenSpec (`openspec/changes/<name>/`), implement against its `tasks.md`, then archive it so `openspec/specs/` stays current.

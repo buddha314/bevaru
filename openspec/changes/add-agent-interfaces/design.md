@@ -54,7 +54,7 @@ Both the MCP tools and the remote methods use these types, so there's one schema
   - `docs/agents/mcp.md`.
 - **Generated:** `docs/agents/capabilities.json` and `docs/agents/capabilities.md`, each marked "generated — do not edit", plus the code blocks that docs include from compiled examples.
 - **One code path:** the generators are functions in `bevaru::agent::docs`, returning `(path, contents)` pairs. `cargo run -p bevaru-mcp -- gen-docs` writes them, and the freshness test in `tests/agent_docs.rs` compares them with the committed files.
-- **Why the test is in the `bevaru` crate:** CI already runs `cargo test -p bevaru`, so the check can't be skipped. When it fails, it prints the stale paths and the regeneration command, plus a short diff of the first difference.
+- **Why the test is in the `bevaru` crate:** every routine test run (`cargo test`, and `scripts/check.sh`) includes it, so the check can't be skipped. *(As built: hosted CI was removed for cost on 2026-10-04. `scripts/check.sh` checks that the code compiles, and `scripts/check.sh --tests` runs the test suites, including this one.)* When it fails, it prints the stale paths and the regeneration command, plus a short diff of the first difference.
 - **Link checking:** the same test checks that every relative link in `llms.txt`, `AGENTS.md`, and `docs/agents/**/*.md` points at an existing file. Moving docs can then never break the index.
 
 ### 4. The tool catalog is data; the MCP crate implements it
