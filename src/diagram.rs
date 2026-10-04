@@ -3,9 +3,10 @@
 //! slide coordinates.
 //!
 //! Bevaru adds only composition here. Every mesh is a Bevy primitive
-//! (`Sphere`, `Cylinder`, `Cone`, and `Extrusion<Capsule2d>`); this module
+//! (`Capsule3d`, `Cylinder`, `Cone`, and `Extrusion<Capsule2d>`); this module
 //! picks primitives and places them with transforms, and never generates
-//! vertices itself (see `docs/presentation/geometry.md`). Nodes, tubes, and
+//! vertices itself. Nodes are tablets: the unit capsule squashed front to
+//! back, so their faces dome like a prescription pill (see `docs/presentation/geometry.md`). Nodes, tubes, and
 //! arrowheads share one unit mesh per kind, whatever the diagram's size.
 
 use std::collections::HashSet;
@@ -48,12 +49,62 @@ pub struct Node {
     pub role: NodeRole,
     /// World position (Z is up).
     pub position: [f32; 3],
+    /// Half the node's height. Nodes are pills lying along the flow (X):
+    /// `PILL_LENGTH` sets how much wider than tall they are, and
+    /// `PILL_DEPTH` how flat (domed faces, like a tablet).
     pub radius: f32,
 }
+
+/// A pill's straight half-length, as a fraction of its radius.
+pub const PILL_LENGTH: f32 = 0.55;
+/// A pill's thickness front to back, as a fraction of its height: the
+/// round capsule squashed into a tablet with domed faces.
+pub const PILL_DEPTH: f32 = 0.5;
 
 impl Node {
     pub fn pos(&self) -> Vec3 {
         Vec3::from_array(self.position)
+    }
+
+    /// Half extents: along the flow (X), front to back (Y), and up (Z).
+    pub fn half_size(&self) -> Vec3 {
+        let r = self.radius;
+        Vec3::new(r * (1.0 + PILL_LENGTH), r * PILL_DEPTH, r)
+    }
+
+    /// How far from the centre the pill's surface is along `dir` (unit).
+    /// Exact for the squashed capsule: in the pill's own units it is a
+    /// capsule of radius 1 whose axis runs ±`PILL_LENGTH` along X.
+    pub fn surface_distance(&self, dir: Vec3) -> f32 {
+        let r = self.radius;
+        // Direction per world unit, in unit-capsule coordinates.
+        let u = Vec3::new(dir.x / r, dir.y / (r * PILL_DEPTH), dir.z / r);
+        let along = u.x.abs();
+        let perp = u.y.hypot(u.z);
+        let l = PILL_LENGTH;
+        if perp < 1e-9 {
+            return (l + 1.0) / along.max(1e-9);
+        }
+        // On the straight side, or else on a hemispherical end.
+        let side = 1.0 / perp;
+        if along * side <= l {
+            return side;
+        }
+        let a = along * along + perp * perp;
+        let b = l * along;
+        (b + (b * b - a * (l * l - 1.0)).max(0.0).sqrt()) / a
+    }
+
+    /// The shared unit capsule (radius 1, axis along Y) placed as this node:
+    /// axis turned onto X, scaled to the radius, and squashed along Y.
+    pub fn pill_transform(&self) -> Transform {
+        let r = self.radius;
+        Transform {
+            translation: self.pos(),
+            // Local Y → world X; local X → world −Y (the squashed depth).
+            rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
+            scale: Vec3::new(r * PILL_DEPTH, r, r),
+        }
     }
 }
 
@@ -201,11 +252,11 @@ impl Diagram {
                 "act",
                 activation.symbol(),
                 NodeRole::Activation,
-                2.8,
+                3.1,
                 0.0,
                 0.55,
             ),
-            node("y", "y", NodeRole::Output, 5.4, 0.0, 0.5),
+            node("y", "y", NodeRole::Output, 6.0, 0.0, 0.5),
         ]);
         let weighted = |id: &str, from: &str, name: &str, w: f64| Edge {
             id: id.into(),
@@ -248,7 +299,7 @@ impl Diagram {
         for n in &self.nodes {
             let at = match n.role {
                 // Inputs read left of their node, like a slide's x₁ ○ ───.
-                NodeRole::Input | NodeRole::Bias => n.pos() - Vec3::X * (n.radius + 0.55),
+                NodeRole::Input | NodeRole::Bias => n.pos() - Vec3::X * (n.half_size().x + 0.45),
                 _ => n.pos() + Vec3::Z * (n.radius + 0.4),
             };
             out.push(LabelAnchor {
@@ -341,8 +392,8 @@ impl Diagram {
         let (a, b) = (self.node(&e.from)?, self.node(&e.to)?);
         let dir = (b.pos() - a.pos()).try_normalize()?;
         let radius = e.weight.map_or(PLAIN_TUBE, weight_radius);
-        let start = a.pos() + dir * a.radius;
-        let tip = b.pos() - dir * b.radius;
+        let start = a.pos() + dir * a.surface_distance(dir);
+        let tip = b.pos() - dir * b.surface_distance(-dir);
         let arrow = e.arrow.then(|| {
             let (len, width) = (0.45, (radius * 3.0).max(0.16));
             (tip - dir * len, tip, width)
@@ -364,11 +415,11 @@ impl Diagram {
         let pad = 0.35;
         let lo = members
             .iter()
-            .map(|n| n.pos() - Vec3::splat(n.radius + pad))
+            .map(|n| n.pos() - n.half_size() - Vec3::splat(pad))
             .reduce(Vec3::min)?;
         let hi = members
             .iter()
-            .map(|n| n.pos() + Vec3::splat(n.radius + pad))
+            .map(|n| n.pos() + n.half_size() + Vec3::splat(pad))
             .reduce(Vec3::max)?;
         Some(GroupBounds {
             center: (lo + hi) / 2.0,
@@ -407,7 +458,8 @@ pub fn cone_transform(base: Vec3, tip: Vec3, radius: f32) -> Transform {
 /// The shared unit meshes and the palette, created once per experience.
 #[derive(Resource, Debug, Clone)]
 pub struct DiagramAssets {
-    pub sphere: Handle<Mesh>,
+    /// The unit capsule every node is scaled from.
+    pub pill: Handle<Mesh>,
     pub cylinder: Handle<Mesh>,
     pub cone: Handle<Mesh>,
     pub roles: Vec<(NodeRole, Handle<StandardMaterial>)>,
@@ -435,17 +487,31 @@ pub fn role_color(role: NodeRole) -> Color {
 
 impl DiagramAssets {
     pub fn new(meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMaterial>) -> Self {
-        let mut mat = |c: Color| {
+        // Pills get a coated finish: a fairly rough base under a glossy
+        // clearcoat, so the domed faces catch a highlight like a tablet.
+        let roles = NodeRole::ALL
+            .map(|r| {
+                let m = materials.add(StandardMaterial {
+                    base_color: role_color(r),
+                    perceptual_roughness: 0.45,
+                    reflectance: 0.5,
+                    clearcoat: 0.8,
+                    clearcoat_perceptual_roughness: 0.18,
+                    ..default()
+                });
+                (r, m)
+            })
+            .to_vec();
+        let mut tube = |c: Color| {
             materials.add(StandardMaterial {
                 base_color: c,
-                perceptual_roughness: 0.6,
+                perceptual_roughness: 0.55,
                 ..default()
             })
         };
-        let roles = NodeRole::ALL.map(|r| (r, mat(role_color(r)))).to_vec();
-        let positive = mat(POSITIVE);
-        let negative = mat(NEGATIVE);
-        let neutral = mat(NEUTRAL);
+        let positive = tube(POSITIVE);
+        let negative = tube(NEGATIVE);
+        let neutral = tube(NEUTRAL);
         let group = materials.add(StandardMaterial {
             base_color: Color::srgba(0.55, 0.62, 0.75, 0.16),
             alpha_mode: AlphaMode::Blend,
@@ -455,7 +521,13 @@ impl DiagramAssets {
             ..default()
         });
         Self {
-            sphere: meshes.add(Sphere::new(1.0).mesh().uv(48, 24)),
+            pill: meshes.add(
+                Capsule3d::new(1.0, 2.0 * PILL_LENGTH)
+                    .mesh()
+                    .rings(12)
+                    .latitudes(32)
+                    .longitudes(48),
+            ),
             cylinder: meshes.add(Cylinder::new(1.0, 1.0).mesh().resolution(24)),
             cone: meshes.add(Cone::new(1.0, 1.0).mesh().resolution(24)),
             roles,
@@ -507,9 +579,9 @@ pub fn spawn_diagram(
     root.with_children(|parent| {
         for n in &diagram.nodes {
             parent.spawn((
-                Mesh3d(assets.sphere.clone()),
+                Mesh3d(assets.pill.clone()),
                 MeshMaterial3d(assets.role(n.role)),
-                Transform::from_translation(n.pos()).with_scale(Vec3::splat(n.radius)),
+                n.pill_transform(),
             ));
         }
         for e in &diagram.edges {
@@ -571,8 +643,10 @@ pub struct ProjectedNode {
     pub id: String,
     pub role: NodeRole,
     pub center: [f32; 2],
-    /// Apparent radius, as a fraction of the slide's height.
-    pub radius: f32,
+    /// Apparent half width and half height of the pill, as fractions of the
+    /// slide's width and height. A pill maps to a stadium shape
+    /// (ECMA-376 `flowChartTerminator`).
+    pub half_size: [f32; 2],
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -594,7 +668,6 @@ pub struct ProjectedLabel {
 /// default field of view) at `aspect` (width / height).
 pub struct SlideCamera {
     clip_from_world: Mat4,
-    view_right: Vec3,
 }
 
 impl SlideCamera {
@@ -606,7 +679,6 @@ impl SlideCamera {
         let world_from_view = view.transform().to_matrix();
         Self {
             clip_from_world: projection.get_clip_from_view() * world_from_view.inverse(),
-            view_right: view.transform().right().into(),
         }
     }
 
@@ -628,14 +700,14 @@ impl Diagram {
             .iter()
             .filter_map(|n| {
                 let c = cam.point(n.pos())?;
-                let edge = cam.point(n.pos() + cam.view_right * n.radius)?;
-                // Horizontal extent in slide-width units → height units.
-                let radius = (edge[0] - c[0]).abs() * aspect;
+                let h = n.half_size();
+                let right = cam.point(n.pos() + Vec3::X * h.x)?;
+                let top = cam.point(n.pos() + Vec3::Z * h.z)?;
                 Some(ProjectedNode {
                     id: n.id.clone(),
                     role: n.role,
                     center: c,
-                    radius,
+                    half_size: [(right[0] - c[0]).abs(), (top[1] - c[1]).abs()],
                 })
             })
             .collect();
@@ -728,19 +800,57 @@ mod tests {
         assert_eq!(back, d);
     }
 
+    /// Whether `p` lies on `n`'s pill: distance 1 from the unit capsule's
+    /// axis segment, in the pill's own units.
+    fn on_pill(n: &Node, p: Vec3) -> bool {
+        let r = n.radius;
+        let q = p - n.pos();
+        let q = Vec3::new(q.x / r, q.y / (r * PILL_DEPTH), q.z / r);
+        let along = q.x.clamp(-PILL_LENGTH, PILL_LENGTH);
+        (Vec3::new(q.x - along, q.y, q.z).length() - 1.0).abs() < 1e-4
+    }
+
+    #[test]
+    fn surface_distance_matches_the_pill() {
+        let n = Node {
+            id: "n".into(),
+            label: String::new(),
+            role: NodeRole::Sum,
+            position: [1.0, 2.0, 3.0],
+            radius: 0.7,
+        };
+        let h = n.half_size();
+        assert!((n.surface_distance(Vec3::X) - h.x).abs() < 1e-5);
+        assert!((n.surface_distance(Vec3::Z) - h.z).abs() < 1e-5);
+        assert!((n.surface_distance(-Vec3::Y) - h.y).abs() < 1e-5);
+        for dir in [
+            Vec3::new(1.0, 0.0, 1.0),
+            Vec3::new(-3.0, 0.0, 1.0),
+            Vec3::new(1.0, -1.0, 0.5),
+            Vec3::new(0.2, 0.0, -1.0),
+        ] {
+            let d = dir.normalize();
+            assert!(on_pill(&n, n.pos() + d * n.surface_distance(d)), "{dir}");
+        }
+        // The shared unit capsule, placed, reaches the same extents.
+        let t = n.pill_transform();
+        assert!(
+            t.transform_point(Vec3::Y * (1.0 + PILL_LENGTH))
+                .distance(n.pos() + Vec3::X * h.x)
+                < 1e-5
+        );
+        assert!(t.transform_point(Vec3::X).distance(n.pos() - Vec3::Y * h.y) < 1e-5);
+    }
+
     #[test]
     fn tubes_end_on_node_surfaces_and_encode_weights() {
         let d = perceptron();
         for e in &d.edges {
             let p = d.placement(e).unwrap();
             let (a, b) = (d.node(&e.from).unwrap(), d.node(&e.to).unwrap());
-            assert!(
-                (p.start.distance(a.pos()) - a.radius).abs() < 1e-5,
-                "{}",
-                e.id
-            );
+            assert!(on_pill(a, p.start), "{}", e.id);
             let tip = p.arrow.map_or(p.end, |(_, tip, _)| tip);
-            assert!((tip.distance(b.pos()) - b.radius).abs() < 1e-5, "{}", e.id);
+            assert!(on_pill(b, tip), "{}", e.id);
         }
         assert!(weight_radius(0.8) > weight_radius(-0.5));
         assert_eq!(weight_radius(0.0), MIN_TUBE);
@@ -818,7 +928,13 @@ mod tests {
         let p = perceptron().project(&front(), 16.0 / 9.0);
         let at = |id: &str| p.nodes.iter().find(|n| n.id == id).unwrap().center;
         let inside = |c: [f32; 2]| (0.0..=1.0).contains(&c[0]) && (0.0..=1.0).contains(&c[1]);
-        assert!(p.nodes.iter().all(|n| inside(n.center) && n.radius > 0.0));
+        assert!(
+            p.nodes.iter().all(|n| inside(n.center)
+                && n.half_size[1] > 0.0
+                // Fractions of width vs height: compare in the same units.
+                && n.half_size[0] * 16.0 / 9.0 > n.half_size[1]),
+            "pills are wider than tall"
+        );
         assert!(p.labels.iter().all(|l| inside(l.at)));
         // Left to right: inputs, Σ, activation, output.
         assert!(at("x1")[0] < at("sum")[0] && at("sum")[0] < at("act")[0]);

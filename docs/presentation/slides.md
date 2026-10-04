@@ -47,7 +47,7 @@ Not started. What it needs: a `wasm32` build target in CI (bevaru has no hosted 
 Better than a PNG: the slide gets ordinary presentation objects that can be moved, recoloured, and relabelled in Euro-Office, LibreOffice, or PowerPoint.
 
 `Diagram::project(view, aspect)` already gives, in slide coordinates ([0, 1]², origin top-left, using Bevy's own camera projection):
-- every node's centre and apparent radius;
+- every node's centre and apparent half width and height;
 - every edge's endpoints, and whether it has an arrowhead;
 - every label's position and text.
 
@@ -55,7 +55,7 @@ An exporter maps these to [ECMA-376 presets](shape-vocabulary.md):
 
 | Diagram element | Slide object |
 | --------------- | ------------ |
-| node | `ellipse`, filled with the role colour, at the projected centre and radius |
+| node | `flowChartTerminator` (a stadium, matching the pill), filled with the role colour, at the projected centre and half-size |
 | edge | `straightConnector1`, with `headEnd` for arrows, coloured and weighted by the edge's weight |
 | label | a text box at the projected position |
 | group | `roundRect` behind its members, translucent |

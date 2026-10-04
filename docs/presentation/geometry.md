@@ -6,7 +6,8 @@ Bevaru composes geometry; it does not generate it. This page names the component
 
 | Element | Operation | Performed by | Bevaru's part |
 | ------- | --------- | ------------ | ------------- |
-| Node (input, Σ, σ, y) | sphere mesh | Bevy `Sphere` → `SphereMeshBuilder` (`bevy_mesh`) | one shared unit mesh, scaled by the node's radius |
+| Node (input, Σ, σ, y) | pill (tablet) mesh | Bevy `Capsule3d` → `Capsule3dMeshBuilder` (`bevy_mesh`) | one shared unit capsule, turned to lie along the flow and squashed front to back by a `Transform` scale, so its faces dome like a tablet. Bevy's renderer corrects normals for the non-uniform scale |
+| Where a tube meets a node | ray–capsule distance | bevaru (`Node::surface_distance`), closed-form | placement only: where to put the tube's end, not a mesh |
 | Weight / connection | cylinder mesh | Bevy `Cylinder` → `CylinderMeshBuilder` | one shared unit mesh, placed between two points by a `Transform` (`Quat::from_rotation_arc`) |
 | Arrowhead | cone mesh | Bevy `Cone` → `ConeMeshBuilder` | one shared unit mesh, placed by a `Transform` |
 | Group backdrop (input layer) | 2-D stadium extruded to a slab | Bevy `Capsule2d` + `Extrusion` (`Extrudable for Capsule2dMeshBuilder`) | chooses size and depth; one mesh per group |

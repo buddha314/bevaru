@@ -64,7 +64,7 @@ G1 (concave polygon meshing) alone unlocks most of the rest; G4 (sweep) unlocks 
 ## Toward an editable 2-D fallback
 
 `Diagram::project` already gives every node, edge, and label a position in slide coordinates. An exporter would write:
-- **nodes** as `ellipse`;
+- **nodes** as `flowChartTerminator` (a stadium, the pill's outline);
 - **edges** as `straightConnector1` with `tailEnd`/`headEnd` arrows;
 - **groups** as `roundRect`;
 - **labels** as text bodies.

@@ -56,7 +56,10 @@ Every mesh comes from Bevy's `Meshable` primitives. Bevaru only places and scale
 *Alternative:* adopt `bevy_procedural_meshes` now for uniformity. Rejected: nothing uses it, and its API is still moving.
 
 ### 2. One shared unit mesh per primitive
-The diagram uses one unit sphere, one unit cylinder, and one unit cone. Each element is a `Transform`, with translation, rotation (`Quat::from_rotation_arc(Vec3::Y, dir)`), and scale. That gives:
+The diagram uses one unit capsule, one unit cylinder, and one unit cone.
+- **Nodes are tablets:** the capsule lies along the flow and is squashed front to back by its `Transform` scale. That gives domed faces like a prescription pill, and the scene a clear internal plane.
+- **Attachment:** a closed-form ray–capsule distance places tube ends on the pill's outline.
+- **Lighting:** a coated (clearcoat) material, plus key, fill, and rim lights, brings out the volume. Each element is a `Transform`, with translation, rotation (`Quat::from_rotation_arc(Vec3::Y, dir)`), and scale. That gives:
 - a fixed number of mesh assets, whatever the diagram's size;
 - less clean-up to leak;
 - no "tube between two points" mesh code, because it is just a transform.

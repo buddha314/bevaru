@@ -112,9 +112,13 @@ fn start(
         &diagram,
         ExperienceEntity,
     );
+    // Key light from the upper front left, a dim fill from the right, and a
+    // rim light from behind that outlines each pill's edge. Ambient light is
+    // kept low so the shading, not flat colour, shows the volume.
     for (direction, illuminance) in [
-        (Vec3::new(0.3, 1.0, -0.8), 5500.0),
-        (Vec3::new(-0.6, 0.4, -0.3), 2000.0),
+        (Vec3::new(0.55, 1.0, -0.75), 7000.0),
+        (Vec3::new(-0.8, 0.6, -0.1), 1400.0),
+        (Vec3::new(-0.2, -1.0, -0.45), 3800.0),
     ] {
         commands.spawn((
             ExperienceEntity,
@@ -144,7 +148,7 @@ fn start(
             ..default()
         },
         AmbientLight {
-            brightness: 800.0,
+            brightness: 350.0,
             ..default()
         },
     ));

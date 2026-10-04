@@ -3,7 +3,7 @@
 Teaching slides draw neural networks as flat circles and arrows. [#20](https://github.com/buddha314/bevaru/issues/20) asks for the same diagrams rendered spatially, starting with a perceptron that can sit on a slide. It also sets a policy: bevaru must not grow its own geometry engine. It composes existing FOSS primitives and fixes gaps upstream.
 
 A spike on 2026-10-04 found that Bevy 0.19 alone covers the whole perceptron:
-- **Nodes:** `Sphere` and `Capsule3d`.
+- **Nodes:** `Capsule3d`, squashed into tablet-shaped pills (`Sphere` would also work).
 - **Weights:** `Cylinder` placed between two points.
 - **Arrowheads:** `Cone`.
 - **Group backdrops:** extruded 2-D primitives.
@@ -18,7 +18,7 @@ The same spike found real gaps worth taking upstream:
 ## What Changes
 
 - **"Perceptron in 3D":** a new lobby experience, in a new *Diagrams* category, plus a `perceptron_3d` example. Three inputs, a weighted sum with bias, an activation, and an output.
-  - **Geometry:** spheres and capsules for nodes, and tubes for weights. Each tube's thickness and colour encode the weight's magnitude and sign. Cones mark direction.
+  - **Geometry:** tablet-shaped pills (squashed capsules with domed faces) for nodes, and tubes for weights. Each tube's thickness and colour encode the weight's magnitude and sign. Cones mark direction.
   - **Labels:** text projected onto the screen, as the loss-shape axes are.
   - **Camera and capture:** the orbit rig, and a slide-ready framing with no control panels.
 - **A small declarative diagram model:** nodes, edges, labels, and groups, with stable ids. This is the Bevaru-specific "semantics" layer.
