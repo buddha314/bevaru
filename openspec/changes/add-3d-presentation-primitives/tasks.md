@@ -6,7 +6,7 @@
 
 ## 2. 3-D rendering from Bevy primitives
 
-- [x] 2.1 One shared unit mesh each for the capsule (nodes as squashed, tablet-shaped pills), cylinder, and cone; nodes, tubes, and arrowheads as transforms of them (`Quat::from_rotation_arc`), with tubes ending at node surfaces
+- [x] 2.1 One shared unit mesh each for the capsule (nodes as flattened, round tablets with domed faces), cylinder, and cone; nodes, tubes, and arrowheads as transforms of them (`Quat::from_rotation_arc`), with tubes ending at node surfaces
 - [x] 2.2 Weight encoding: Okabe–Ito sign colours and radius from |w|, with a neutral thread at w = 0; the input-layer group as a translucent extruded `Capsule2d` backdrop
 - [x] 2.3 Projected egui labels (nodes, weights), kept inside the view as in `shape_view`, and shown in slide view
 - [x] 2.4 Tests: same mesh-asset count for the perceptron and a larger diagram with the same groups (nodes, tubes, and cones share meshes; each backdrop has its own); tube endpoints lie on node surfaces; sign changes hue and |w| orders radii

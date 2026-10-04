@@ -5,8 +5,8 @@
 //! Bevaru adds only composition here. Every mesh is a Bevy primitive
 //! (`Capsule3d`, `Cylinder`, `Cone`, and `Extrusion<Capsule2d>`); this module
 //! picks primitives and places them with transforms, and never generates
-//! vertices itself. Nodes are tablets: the unit capsule squashed front to
-//! back, so their faces dome like a prescription pill (see `docs/presentation/geometry.md`). Nodes, tubes, and
+//! vertices itself. Nodes are round tablets: the unit capsule pointed at the
+//! camera and flattened, so each is a circle with domed faces, like a pill (see `docs/presentation/geometry.md`). Nodes, tubes, and
 //! arrowheads share one unit mesh per kind, whatever the diagram's size.
 
 use std::collections::HashSet;
@@ -49,17 +49,18 @@ pub struct Node {
     pub role: NodeRole,
     /// World position (Z is up).
     pub position: [f32; 3],
-    /// Half the node's height. Nodes are pills lying along the flow (X):
-    /// `PILL_LENGTH` sets how much wider than tall they are, and
-    /// `PILL_DEPTH` how flat (domed faces, like a tablet).
+    /// The node's radius. Nodes are round tablets facing the camera: a
+    /// circle of this radius in the diagram's plane, with a short straight
+    /// edge band (`PILL_BAND`) and domed faces (`PILL_DOME`).
     pub radius: f32,
 }
 
-/// A pill's straight half-length, as a fraction of its radius.
-pub const PILL_LENGTH: f32 = 0.55;
-/// A pill's thickness front to back, as a fraction of its height: the
-/// round capsule squashed into a tablet with domed faces.
-pub const PILL_DEPTH: f32 = 0.5;
+/// The unit capsule's straight half-length, before flattening: it becomes
+/// the tablet's edge band.
+pub const PILL_BAND: f32 = 0.4;
+/// How much the capsule is flattened along its axis (front to back), as a
+/// fraction of the radius: the hemispherical ends become shallow domes.
+pub const PILL_DOME: f32 = 0.35;
 
 impl Node {
     pub fn pos(&self) -> Vec3 {
@@ -67,21 +68,23 @@ impl Node {
     }
 
     /// Half extents: along the flow (X), front to back (Y), and up (Z).
+    /// The outline in the diagram's plane is a circle of the node's radius.
     pub fn half_size(&self) -> Vec3 {
         let r = self.radius;
-        Vec3::new(r * (1.0 + PILL_LENGTH), r * PILL_DEPTH, r)
+        Vec3::new(r, r * PILL_DOME * (1.0 + PILL_BAND), r)
     }
 
-    /// How far from the centre the pill's surface is along `dir` (unit).
-    /// Exact for the squashed capsule: in the pill's own units it is a
-    /// capsule of radius 1 whose axis runs ±`PILL_LENGTH` along X.
+    /// How far from the centre the tablet's surface is along `dir` (unit).
+    /// Exact: in the tablet's own units it is a capsule of radius 1 whose
+    /// axis runs ±`PILL_BAND` front to back (Y). In the diagram's plane
+    /// this is the radius, whatever the direction.
     pub fn surface_distance(&self, dir: Vec3) -> f32 {
         let r = self.radius;
         // Direction per world unit, in unit-capsule coordinates.
-        let u = Vec3::new(dir.x / r, dir.y / (r * PILL_DEPTH), dir.z / r);
-        let along = u.x.abs();
-        let perp = u.y.hypot(u.z);
-        let l = PILL_LENGTH;
+        let u = Vec3::new(dir.x / r, dir.y / (r * PILL_DOME), dir.z / r);
+        let along = u.y.abs();
+        let perp = u.x.hypot(u.z);
+        let l = PILL_BAND;
         if perp < 1e-9 {
             return (l + 1.0) / along.max(1e-9);
         }
@@ -95,16 +98,12 @@ impl Node {
         (b + (b * b - a * (l * l - 1.0)).max(0.0).sqrt()) / a
     }
 
-    /// The shared unit capsule (radius 1, axis along Y) placed as this node:
-    /// axis turned onto X, scaled to the radius, and squashed along Y.
+    /// The shared unit capsule (radius 1, axis along Y) placed as this node.
+    /// Its axis already points front to back, so it is only scaled: by the
+    /// radius in the diagram's plane, and flattened along the axis.
     pub fn pill_transform(&self) -> Transform {
         let r = self.radius;
-        Transform {
-            translation: self.pos(),
-            // Local Y → world X; local X → world −Y (the squashed depth).
-            rotation: Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
-            scale: Vec3::new(r * PILL_DEPTH, r, r),
-        }
+        Transform::from_translation(self.pos()).with_scale(Vec3::new(r, r * PILL_DOME, r))
     }
 }
 
@@ -252,11 +251,11 @@ impl Diagram {
                 "act",
                 activation.symbol(),
                 NodeRole::Activation,
-                3.1,
+                2.8,
                 0.0,
                 0.55,
             ),
-            node("y", "y", NodeRole::Output, 6.0, 0.0, 0.5),
+            node("y", "y", NodeRole::Output, 5.4, 0.0, 0.5),
         ]);
         let weighted = |id: &str, from: &str, name: &str, w: f64| Edge {
             id: id.into(),
@@ -522,7 +521,7 @@ impl DiagramAssets {
         });
         Self {
             pill: meshes.add(
-                Capsule3d::new(1.0, 2.0 * PILL_LENGTH)
+                Capsule3d::new(1.0, 2.0 * PILL_BAND)
                     .mesh()
                     .rings(12)
                     .latitudes(32)
@@ -643,9 +642,9 @@ pub struct ProjectedNode {
     pub id: String,
     pub role: NodeRole,
     pub center: [f32; 2],
-    /// Apparent half width and half height of the pill, as fractions of the
-    /// slide's width and height. A pill maps to a stadium shape
-    /// (ECMA-376 `flowChartTerminator`).
+    /// Apparent half width and half height of the tablet, as fractions of
+    /// the slide's width and height. Front-on it is a circle (ECMA-376
+    /// `ellipse`).
     pub half_size: [f32; 2],
 }
 
@@ -805,9 +804,9 @@ mod tests {
     fn on_pill(n: &Node, p: Vec3) -> bool {
         let r = n.radius;
         let q = p - n.pos();
-        let q = Vec3::new(q.x / r, q.y / (r * PILL_DEPTH), q.z / r);
-        let along = q.x.clamp(-PILL_LENGTH, PILL_LENGTH);
-        (Vec3::new(q.x - along, q.y, q.z).length() - 1.0).abs() < 1e-4
+        let q = Vec3::new(q.x / r, q.y / (r * PILL_DOME), q.z / r);
+        let along = q.y.clamp(-PILL_BAND, PILL_BAND);
+        (Vec3::new(q.x, q.y - along, q.z).length() - 1.0).abs() < 1e-4
     }
 
     #[test]
@@ -832,14 +831,20 @@ mod tests {
             let d = dir.normalize();
             assert!(on_pill(&n, n.pos() + d * n.surface_distance(d)), "{dir}");
         }
+        // A constant radius in the diagram's plane: every in-plane direction.
+        for k in 0..12 {
+            let a = k as f32 * std::f32::consts::TAU / 12.0;
+            let d = Vec3::new(a.cos(), 0.0, a.sin());
+            assert!((n.surface_distance(d) - n.radius).abs() < 1e-5);
+        }
         // The shared unit capsule, placed, reaches the same extents.
         let t = n.pill_transform();
+        assert!(t.transform_point(Vec3::X).distance(n.pos() + Vec3::X * h.x) < 1e-5);
         assert!(
-            t.transform_point(Vec3::Y * (1.0 + PILL_LENGTH))
-                .distance(n.pos() + Vec3::X * h.x)
+            t.transform_point(-Vec3::Y * (1.0 + PILL_BAND))
+                .distance(n.pos() - Vec3::Y * h.y)
                 < 1e-5
         );
-        assert!(t.transform_point(Vec3::X).distance(n.pos() - Vec3::Y * h.y) < 1e-5);
     }
 
     #[test]
@@ -931,9 +936,10 @@ mod tests {
         assert!(
             p.nodes.iter().all(|n| inside(n.center)
                 && n.half_size[1] > 0.0
-                // Fractions of width vs height: compare in the same units.
-                && n.half_size[0] * 16.0 / 9.0 > n.half_size[1]),
-            "pills are wider than tall"
+                // Fractions of width vs height: in the same units, front-on
+                // tablets are round.
+                && (n.half_size[0] * 16.0 / 9.0 / n.half_size[1] - 1.0).abs() < 0.05),
+            "tablets are round front-on"
         );
         assert!(p.labels.iter().all(|l| inside(l.at)));
         // Left to right: inputs, Σ, activation, output.

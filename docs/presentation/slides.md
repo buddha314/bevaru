@@ -55,7 +55,7 @@ An exporter maps these to [ECMA-376 presets](shape-vocabulary.md):
 
 | Diagram element | Slide object |
 | --------------- | ------------ |
-| node | `flowChartTerminator` (a stadium, matching the pill), filled with the role colour, at the projected centre and half-size |
+| node | `ellipse` (a circle front-on, matching the tablet), filled with the role colour, at the projected centre and half-size |
 | edge | `straightConnector1`, with `headEnd` for arrows, coloured and weighted by the edge's weight |
 | label | a text box at the projected position |
 | group | `roundRect` behind its members, translucent |

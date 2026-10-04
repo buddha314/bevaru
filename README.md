@@ -122,7 +122,7 @@ Agents can get the same views through `bevaru-mcp`. `sample_loss_shape` returns 
 
 ![A 3-D perceptron in slide view: inputs, weighted tubes, Σ, σ and y](docs/images/perceptron.webp)
 
-It is built only from Bevy's own primitives: capsules squashed into tablet-shaped nodes, plus cylinders, cones, and an extruded 2-D capsule. Bevaru positions and colours them and generates no geometry of its own. That's deliberate: bevaru composes existing FOSS geometry rather than becoming a shape library, and improves those libraries upstream where they fall short. [`docs/presentation/`](docs/presentation) records how this works:
+It is built only from Bevy's own primitives: capsules flattened into round, domed tablets for the nodes, plus cylinders, cones, and an extruded 2-D capsule. Bevaru positions and colours them and generates no geometry of its own. That's deliberate: bevaru composes existing FOSS geometry rather than becoming a shape library, and improves those libraries upstream where they fall short. [`docs/presentation/`](docs/presentation) records how this works:
 - [geometry provenance](docs/presentation/geometry.md): which crate performs each operation;
 - [upstream gap log](docs/presentation/upstream-gaps.md): what's missing, and where it belongs;
 - [presentation-shape vocabulary](docs/presentation/shape-vocabulary.md): common slide shapes by their ECMA-376 names, mapped onto the FOSS stack;
