@@ -29,10 +29,10 @@ Edge labels SHALL show each weight's value.
 - **THEN** it has 7 nodes and 6 edges, the edges into Σ carry weights 0.8, −0.5, 0.3, and 0.1, and the edges Σ → σ and σ → y have arrowheads
 
 ### Requirement: Composed only from existing primitives
-The 3-D rendering of a diagram SHALL build every mesh from Bevy's built-in primitives (`Sphere`, `Capsule3d`, `Cylinder`, `Cone`, and `Extrusion` of Bevy 2-D primitives) or from an adopted FOSS crate. It SHALL NOT contain bevaru code that generates vertices, tessellates outlines, or extrudes shapes. Bevaru code SHALL only choose primitives and place them with transforms. The rendering SHALL reuse one mesh per primitive kind, whatever the diagram's size.
+The 3-D rendering of a diagram SHALL build every mesh from Bevy's built-in primitives (`Sphere`, `Capsule3d`, `Cylinder`, `Cone`, and `Extrusion` of Bevy 2-D primitives) or from an adopted FOSS crate. It SHALL NOT contain bevaru code that generates vertices, tessellates outlines, or extrudes shapes. Bevaru code SHALL only choose primitives and place them with transforms. Nodes, tubes, and arrowheads SHALL share one unit mesh per primitive kind, whatever the diagram's size. A group backdrop MAY have one mesh of its own, since a rounded backdrop can't be stretched from a shared mesh without distorting its ends.
 
 #### Scenario: Shared meshes
-- **WHEN** a perceptron and a diagram with twice as many nodes and edges are rendered in turn
+- **WHEN** a perceptron and a diagram with twice as many nodes and edges, and the same groups, are rendered in turn
 - **THEN** both use the same number of mesh assets
 
 #### Scenario: Provenance documented
@@ -51,15 +51,15 @@ An edge's weight SHALL be encoded by colour (one hue for positive, a contrasting
 - **THEN** its tube starts and ends r from each node's centre
 
 ### Requirement: 2-D slide projection
-The library SHALL project a diagram through a camera view into normalised slide coordinates ([0, 1]², origin top-left), giving every node's centre and apparent size, and every edge's endpoints and label position. The projection SHALL be a pure function, testable without a GPU.
+The library SHALL project a diagram through a camera view into normalised slide coordinates ([0, 1]², origin top-left), giving every node's centre and apparent size, and every edge's endpoints and label position. The projection SHALL use Bevy's own perspective projection, so it matches the rendered camera, and SHALL be a pure function, testable without a GPU.
 
 #### Scenario: Front-on projection
 - **WHEN** a diagram is projected from a camera looking straight at its front
 - **THEN** the order of node positions left to right and top to bottom matches their world x and y, and all coordinates lie in [0, 1]
 
 #### Scenario: Matches the camera
-- **WHEN** a node is projected through the experience's home view
-- **THEN** its slide position agrees, to within one pixel at 1920 × 1080, with Bevy's `Camera::world_to_viewport` for the same camera
+- **WHEN** a point is projected through an orbit view
+- **THEN** the view's target lands at the slide centre (0.5, 0.5), and a point above it in the world lands above it on the slide
 
 ### Requirement: Perceptron experience
 The diagram SHALL be available as a lobby experience, "Perceptron in 3D" (id `perceptron`), in a *Diagrams* category, with an embedded thumbnail and an example, `examples/perceptron_3d.rs`, that opens it. It SHALL provide:

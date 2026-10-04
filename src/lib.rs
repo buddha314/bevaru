@@ -10,6 +10,7 @@ pub mod app;
 pub mod capture;
 pub mod charts;
 pub mod controls;
+pub mod diagram;
 pub mod experiences;
 pub mod experiment;
 pub mod geometry;

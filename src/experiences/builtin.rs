@@ -101,6 +101,18 @@ pub(super) fn register(app: &mut App) {
         kind: ExperienceKind::Custom,
     })
     .register_experience(Experience {
+        id: super::perceptron::ID,
+        title: "Perceptron in 3D",
+        summary: "A perceptron drawn for slides: inputs, weights, a sum, an activation, and the output, with weights you can change live.",
+        category: "Diagrams",
+        thumbnail: Some(Thumbnail::Embedded(include_bytes!(
+            "../../assets/thumbnails/perceptron.png"
+        ))),
+        requires: Requirement::None,
+        note: None,
+        kind: ExperienceKind::Custom,
+    })
+    .register_experience(Experience {
         id: super::sigmoid::ID,
         title: "Sigmoid",
         summary: "The logistic sigmoid σ(x) = 1 / (1 + e^−x), plotted with ruviz.",

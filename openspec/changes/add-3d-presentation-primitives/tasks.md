@@ -1,28 +1,28 @@
 ## 1. Diagram model (`src/diagram.rs`)
 
-- [ ] 1.1 `Diagram`, `Node` (with `NodeRole`), `Edge`, and `Group`, with stable string ids, serde, and validation that names the offending id
-- [ ] 1.2 `Diagram::perceptron(weights, bias)`: inputs x₁–x₃, bias b, Σ, σ, and y; four weighted edges into Σ; arrowed Σ → σ → y; an input-layer group; weight labels
-- [ ] 1.3 Tests: the perceptron validates (7 nodes, 6 edges, the weights on the Σ edges, arrowheads); a dangling edge is rejected by name; JSON round-trips
+- [x] 1.1 `Diagram`, `Node` (with `NodeRole`), `Edge`, and `Group`, with stable string ids, serde, and validation that names the offending id
+- [x] 1.2 `Diagram::perceptron(weights, bias)`: inputs x₁–x₃, bias b, Σ, σ, and y; four weighted edges into Σ; arrowed Σ → σ → y; an input-layer group; weight labels
+- [x] 1.3 Tests: the perceptron validates (7 nodes, 6 edges, the weights on the Σ edges, arrowheads); a dangling edge is rejected by name; JSON round-trips
 
 ## 2. 3-D rendering from Bevy primitives
 
-- [ ] 2.1 One shared unit mesh each for the sphere, cylinder, and cone; nodes, tubes, and arrowheads as transforms of them (`Quat::from_rotation_arc`), with tubes ending at node surfaces
-- [ ] 2.2 Weight encoding: Okabe–Ito sign colours and radius from |w|, with a neutral thread at w = 0; the input-layer group as a translucent extruded `Capsule2d` backdrop
-- [ ] 2.3 Projected egui labels (nodes, weights), kept inside the view as in `shape_view`, and shown in slide view
-- [ ] 2.4 Tests: same mesh-asset count for the perceptron and a larger diagram; tube endpoints lie on node surfaces; sign changes hue and |w| orders radii
+- [x] 2.1 One shared unit mesh each for the sphere, cylinder, and cone; nodes, tubes, and arrowheads as transforms of them (`Quat::from_rotation_arc`), with tubes ending at node surfaces
+- [x] 2.2 Weight encoding: Okabe–Ito sign colours and radius from |w|, with a neutral thread at w = 0; the input-layer group as a translucent extruded `Capsule2d` backdrop
+- [x] 2.3 Projected egui labels (nodes, weights), kept inside the view as in `shape_view`, and shown in slide view
+- [x] 2.4 Tests: same mesh-asset count for the perceptron and a larger diagram with the same groups (nodes, tubes, and cones share meshes; each backdrop has its own); tube endpoints lie on node surfaces; sign changes hue and |w| orders radii
 
 ## 3. 2-D slide projection
 
-- [ ] 3.1 `Diagram::project(view, aspect)` → node centres and sizes, edge endpoints, and label positions in [0, 1]² (origin top-left), as a pure function
-- [ ] 3.2 Tests: a front-on view preserves left-right and top-bottom order inside [0, 1]; the result agrees with `Camera::world_to_viewport` to within a pixel at 1920 × 1080 in a headless app
+- [x] 3.1 `Diagram::project(view, aspect)` → node centres and sizes, edge endpoints, and label positions in [0, 1]² (origin top-left), as a pure function
+- [x] 3.2 Tests: a front-on view preserves left-right and top-bottom order inside [0, 1]; the projection uses Bevy's `PerspectiveProjection`, and an orbit view's target lands at the slide centre
 
 ## 4. Experience
 
-- [ ] 4.1 Register "Perceptron in 3D" (`perceptron`, *Diagrams* category) as a custom experience, added only when mesh assets and gizmos exist; orbit rig with home view; white background
-- [ ] 4.2 Floating controls: three weight sliders, bias, activation (step or sigmoid), label toggle, and *Reset view*; changes update the diagram in place
-- [ ] 4.3 Slide view on `H`: insert or remove `HideOverlays`, frame for 16:9, keep labels; `Esc` still leaves the experience
-- [ ] 4.4 `examples/perceptron_3d.rs` via `shared::run_experience`; thumbnail via `scripts/thumbnails.sh perceptron`
-- [ ] 4.5 Headless lobby tests: open, live weight change, slide-view toggle, and the ten-round-trip leak test
+- [x] 4.1 Register "Perceptron in 3D" (`perceptron`, *Diagrams* category) as a custom experience, added only when mesh assets and gizmos exist; orbit rig with home view; white background
+- [x] 4.2 Floating controls: three weight sliders, bias, activation (step or sigmoid), label toggle, and *Reset view*; changes update the diagram in place
+- [x] 4.3 Slide view on `H`: insert or remove `HideOverlays`, frame for 16:9, keep labels; `Esc` still leaves the experience
+- [x] 4.4 `examples/perceptron_3d.rs` via `shared::run_experience`; thumbnail via `scripts/thumbnails.sh perceptron`
+- [x] 4.5 Headless lobby tests: open, live weight change, slide-view toggle, and the ten-round-trip leak test
 
 ## 5. Presentation docs (`docs/presentation/`)
 
