@@ -63,7 +63,7 @@ A window opens on the **lobby**:
 
 ## The lobby
 
-`cargo run` opens a lobby with one card per experience, grouped by category. Pick one to start it. **◀ Lobby** or `Esc` brings you back, and leaving cleans up everything the experience created.
+`cargo run` opens a lobby with one card per experience, grouped by category. Pick one to start it. **◀ Lobby** or `Esc` brings you back, and leaving cleans up everything the experience created. **Exit** (or `Ctrl+Q`) in the lobby quits.
 
 ![The lobby: experiences grouped by category, with thumbnails](docs/images/lobby.webp)
 
@@ -83,7 +83,7 @@ Every experience, and how to open it directly:
 - **Control panel (left):** pick the data, view, losses and hyperparameters. Add up to three side-by-side panes, play, pause, step or scrub training, and run hyperparameter sweeps.
 - **Chart panel (right):** loss curves, the training objective, and learned weights.
 - **Mouse:** in 2D, drag to pan and scroll to zoom. In 3D, left-drag to orbit and right-drag to pan.
-- **Keys:** `Space` play/pause · `S` step · `R` reset · `F` frame data · `Esc` back to the lobby.
+- **Keys:** `Space` play/pause · `S` step · `R` reset · `F` frame data · `Esc` back to the lobby · `Ctrl+Q` quit from the lobby (or click **Exit**).
 
 ## Visual verification walkthrough
 

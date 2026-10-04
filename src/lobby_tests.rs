@@ -466,3 +466,43 @@ fn a_load_that_finishes_before_the_screen_changes_still_starts() {
         "on-loaded actions ran"
     );
 }
+
+/// The `AppExit` messages sent in the latest update.
+fn exits(app: &mut App) -> Vec<AppExit> {
+    let messages = app.world().resource::<Messages<AppExit>>();
+    messages.iter_current_update_messages().cloned().collect()
+}
+
+fn lobby_app_with_keys() -> App {
+    let mut app = lobby_app();
+    app.init_resource::<ButtonInput<KeyCode>>().add_systems(
+        Update,
+        (
+            super::ui::exit_shortcut.run_if(in_state(AppScreen::Lobby)),
+            super::ui::escape_to_lobby.run_if(not(in_state(AppScreen::Lobby))),
+        ),
+    );
+    frames(&mut app, 2);
+    app
+}
+
+#[test]
+fn ctrl_q_in_the_lobby_exits_cleanly() {
+    let mut app = lobby_app_with_keys();
+    let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+    keys.press(KeyCode::ControlLeft);
+    keys.press(KeyCode::KeyQ);
+    app.update();
+    assert_eq!(exits(&mut app), vec![AppExit::Success]);
+}
+
+#[test]
+fn esc_in_the_lobby_does_not_exit() {
+    let mut app = lobby_app_with_keys();
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::Escape);
+    app.update();
+    assert!(exits(&mut app).is_empty());
+    assert_eq!(screen(&app), AppScreen::Lobby);
+}
