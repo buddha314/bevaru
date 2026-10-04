@@ -45,9 +45,11 @@ pub struct LeaveExperience;
 #[derive(Resource, Debug, Default)]
 pub struct LobbyErrors(pub HashMap<&'static str, String>);
 
-/// What to do once the loading experiment arrives.
+/// A load the lobby requested and is waiting for, with what to do when it
+/// arrives. Tracked explicitly rather than inferred from [`AppScreen`]: a
+/// fast load can finish before the requested `Loading` transition applies.
 #[derive(Resource, Debug, Default)]
-struct PendingActions(Vec<OnLoaded>);
+struct PendingActions(Option<Vec<OnLoaded>>);
 
 #[derive(Default)]
 pub struct LobbyPlugin {
@@ -108,7 +110,7 @@ fn leave(
         commands.trigger(ExperienceStopped { id });
     }
     unload.write(UnloadExperiment);
-    pending.0.clear();
+    pending.0 = None;
     next.set(AppScreen::Lobby);
 }
 
@@ -169,7 +171,7 @@ fn handle_enter(
         match &experience.kind {
             ExperienceKind::Experiment { spec, on_loaded } => {
                 load.write(LoadExperiment(spec()));
-                pending.0.clone_from(on_loaded);
+                pending.0 = Some(on_loaded.clone());
                 next.set(AppScreen::Loading);
             }
             ExperienceKind::Custom => next.set(AppScreen::Running),
@@ -180,21 +182,20 @@ fn handle_enter(
 /// The experiment we were loading arrived: show it and run its actions.
 fn experiment_ready(
     _loaded: On<ExperimentLoaded>,
-    state: Res<State<AppScreen>>,
     mut next: ResMut<NextState<AppScreen>>,
     mut pending: ResMut<PendingActions>,
     mut playback: MessageWriter<PlaybackCommand>,
     mut sweep: MessageWriter<SweepCommand>,
     charts: Option<ResMut<ChartSettings>>,
 ) {
-    // Loads started from inside a running experience (its Data panel) need
-    // no screen change.
-    if *state.get() != AppScreen::Loading {
+    // Only loads the lobby requested; those started from inside a running
+    // experience (its Data panel) need no screen change.
+    let Some(actions) = pending.0.take() else {
         return;
-    }
+    };
     next.set(AppScreen::Running);
     let mut charts = charts;
-    for action in pending.0.drain(..) {
+    for action in actions {
         match action {
             OnLoaded::Play => {
                 playback.write(PlaybackCommand::Play);
@@ -215,7 +216,6 @@ fn experiment_ready(
 #[allow(clippy::too_many_arguments)]
 fn experiment_failed(
     failed: On<ExperimentLoadFailed>,
-    state: Res<State<AppScreen>>,
     mut commands: Commands,
     mut active: ResMut<ActiveExperience>,
     mut next: ResMut<NextState<AppScreen>>,
@@ -223,7 +223,7 @@ fn experiment_failed(
     mut pending: ResMut<PendingActions>,
     mut errors: ResMut<LobbyErrors>,
 ) {
-    if *state.get() != AppScreen::Loading {
+    if pending.0.is_none() {
         return;
     }
     if let Some(id) = active.0 {
