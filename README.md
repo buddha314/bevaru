@@ -52,6 +52,7 @@ A window opens on the **lobby**:
 | `cargo run --release -- <id>` | Open one experience directly, skipping the lobby (e.g. `iris-svm`). `Esc` still returns to the lobby. |
 | `cargo run --release --features mnist` | Also enable the MNIST experience. Its first start downloads about 11 MB and caches it; set `BEVARU_MNIST_DIR` to use files you already have. |
 | `cargo run --release --example iris_svm` | The examples open the same experiences directly. Also available: `regression_mse_vs_mae`, `loss_curves`, `mnist_svm` (needs `--features mnist`) and `ml_interactive` (the sigmoid). |
+| `cargo run --release --example loss_surface` | Orbit a 3-D objective surface for hinge, squared hinge, or logistic binary cross-entropy; change C, margin, or L2 strength. |
 
 ### Troubleshooting
 
@@ -96,6 +97,10 @@ Run each experience from the repository root. The first build may take a few min
 5. **Lobby round trip:** Run `cargo run --release`. Open each card, press `Esc`, and check that the lobby comes back with nothing left over from the experience. Do the same with the **◀ Lobby** button. Open **Sigmoid** and go straight back; then open an experiment. Each should start clean.
 
 For a 3-D camera check, run Iris, select **3-D (third feature)**, and click **Load**. Left-drag to orbit, right-drag to pan, and scroll to zoom. Press `F` or click **Frame data** to fit every point in view again. Switch back to 2-D to check **Decision regions**; toggle **SVM margins** in either view.
+
+For the parameterized loss asset, run `cargo run --release --example loss_surface`. Its red X axis is one model weight, green Y is the bias, and blue Z is the training objective (mean loss plus L2 regularization) for eight fixed binary samples. Select **Hinge**, **Squared hinge**, or **Logistic (binary cross-entropy)** in the panel. Change **C** and **hinge margin** for SVM losses or **L2 λ** for logistic loss; the surface and its objective range should update. Left-drag to orbit, right-drag to pan, scroll to zoom, and press `F` to frame it again.
+
+![A parameterized hinge objective surface over model weight and bias](docs/images/loss_surface.webp)
 
 To save a screenshot automatically and exit after eight seconds, for example:
 
