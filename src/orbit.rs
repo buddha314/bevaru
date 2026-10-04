@@ -62,8 +62,25 @@ impl OrbitRig {
     }
 }
 
+/// How far the pointer moved this frame, in logical pixels.
+///
+/// Uses the change in cursor position, which every windowing backend
+/// reports. Raw device motion (`AccumulatedMouseMotion`) is not delivered on
+/// some Wayland compositors or for synthetic input, so it is only the
+/// fallback when the cursor is outside the window. `last` keeps the previous
+/// cursor position between frames.
+pub fn pointer_delta(last: &mut Option<Vec2>, cursor: Option<Vec2>, raw: Vec2) -> Vec2 {
+    let delta = match (*last, cursor) {
+        (Some(before), Some(now)) => now - before,
+        _ => raw,
+    };
+    *last = cursor;
+    delta
+}
+
 fn orbit_cameras(
     mut rigs: Query<(&mut Transform, &mut OrbitRig)>,
+    mut last_cursor: Local<Option<Vec2>>,
     // Optional, so headless apps (no input plugin) can still hold a rig.
     buttons: Option<Res<ButtonInput<MouseButton>>>,
     keys: Option<Res<ButtonInput<KeyCode>>>,
@@ -72,12 +89,19 @@ fn orbit_cameras(
     egui: Option<Res<EguiWantsInput>>,
     windows: Query<&Window>,
 ) {
-    let height = windows.iter().next().map_or(900.0, |w| w.height().max(1.0));
+    let window = windows.iter().next();
+    let height = window.map_or(900.0, |w| w.height().max(1.0));
+    let raw = motion.as_ref().map_or(Vec2::ZERO, |m| m.delta);
+    let delta = pointer_delta(
+        &mut last_cursor,
+        window.and_then(Window::cursor_position),
+        raw,
+    );
     let pointer_free = !egui.as_ref().is_some_and(|e| e.wants_any_pointer_input());
     let keys_free = !egui.as_ref().is_some_and(|e| e.wants_any_keyboard_input());
     let pressed_f = keys.is_some_and(|k| keys_free && k.just_pressed(KeyCode::KeyF));
-    let pointer = match (buttons, motion, scroll) {
-        (Some(b), Some(m), Some(s)) if pointer_free => Some((b, m, s)),
+    let pointer = match (buttons, scroll) {
+        (Some(b), Some(s)) if pointer_free => Some((b, s)),
         _ => None,
     };
     for (mut transform, mut rig) in &mut rigs {
@@ -85,7 +109,7 @@ fn orbit_cameras(
             rig.view = rig.home;
             rig.reset = false;
         }
-        if let Some((buttons, motion, scroll)) = &pointer {
+        if let Some((buttons, scroll)) = &pointer {
             let view = &mut rig.view;
             let lines = match scroll.unit {
                 MouseScrollUnit::Line => scroll.delta.y,
@@ -93,12 +117,12 @@ fn orbit_cameras(
             };
             view.distance = (view.distance * 0.9f32.powf(lines)).clamp(2.0, 80.0);
             if buttons.pressed(MouseButton::Left) {
-                view.yaw -= motion.delta.x * 0.008;
-                view.pitch = (view.pitch + motion.delta.y * 0.008).clamp(-1.45, 1.45);
+                view.yaw -= delta.x * 0.008;
+                view.pitch = (view.pitch + delta.y * 0.008).clamp(-1.45, 1.45);
             } else if buttons.pressed(MouseButton::Right) {
                 let right = Vec3::new(-view.yaw.sin(), view.yaw.cos(), 0.0);
                 let k = view.distance / height;
-                view.target += (-motion.delta.x * right + motion.delta.y * Vec3::Z) * k;
+                view.target += (-delta.x * right + delta.y * Vec3::Z) * k;
             }
         }
         let next = rig.view.transform();
@@ -111,6 +135,25 @@ fn orbit_cameras(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pointer_delta_follows_the_cursor_and_falls_back_to_raw_motion() {
+        let mut last = None;
+        let raw = Vec2::new(7.0, 7.0);
+        // First frame: no previous position yet.
+        assert_eq!(
+            pointer_delta(&mut last, Some(Vec2::new(10.0, 10.0)), raw),
+            raw
+        );
+        assert_eq!(
+            pointer_delta(&mut last, Some(Vec2::new(25.0, 4.0)), Vec2::ZERO),
+            Vec2::new(15.0, -6.0),
+            "cursor movement counts even when raw motion is zero"
+        );
+        // Cursor left the window: raw motion only.
+        assert_eq!(pointer_delta(&mut last, None, raw), raw);
+        assert_eq!(last, None);
+    }
 
     #[test]
     fn home_view_looks_at_the_target_from_above() {
