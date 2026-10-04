@@ -15,10 +15,12 @@ pub mod experiment;
 pub mod geometry;
 pub mod lobby;
 pub mod loss_surface;
+pub mod orbit;
 pub mod playback;
 #[cfg(feature = "remote")]
 pub mod remote;
 pub mod scene;
+pub mod shape_view;
 
 pub use bevaru_core as core;
 pub use experiment::{

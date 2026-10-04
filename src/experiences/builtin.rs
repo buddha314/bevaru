@@ -77,6 +77,30 @@ pub(super) fn register(app: &mut App) {
         },
     })
     .register_experience(Experience {
+        id: super::loss_shapes::ID,
+        title: "Loss shapes in 3D",
+        summary: "Every loss as a surface over two quantities you know, such as truth and prediction or two class scores, with the familiar 2-D curve as a slice.",
+        category: "Loss functions",
+        thumbnail: Some(Thumbnail::Embedded(include_bytes!(
+            "../../assets/thumbnails/loss-shapes.png"
+        ))),
+        requires: Requirement::None,
+        note: None,
+        kind: ExperienceKind::Custom,
+    })
+    .register_experience(Experience {
+        id: super::loss_surface::ID,
+        title: "Training objective in 3D",
+        summary: "The training objective over a model's weight and bias, for hinge, squared hinge, and logistic loss: the shape of training with each loss.",
+        category: "Loss functions",
+        thumbnail: Some(Thumbnail::Embedded(include_bytes!(
+            "../../assets/thumbnails/loss-surface.png"
+        ))),
+        requires: Requirement::None,
+        note: None,
+        kind: ExperienceKind::Custom,
+    })
+    .register_experience(Experience {
         id: super::sigmoid::ID,
         title: "Sigmoid",
         summary: "The logistic sigmoid σ(x) = 1 / (1 + e^−x), plotted with ruviz.",

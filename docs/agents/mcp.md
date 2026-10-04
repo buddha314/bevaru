@@ -43,14 +43,16 @@ command = "bevaru-mcp"
 
 | Tool | What it does |
 | ---- | ------------ |
-| `describe` | The capability manifest, or one section (`losses`, `models`, `datasets`, `views`, `sweep_parameters`, `experiences`, `messages`, `tools`, `schemas`). Call this first. |
+| `describe` | The capability manifest, or one section (`losses`, `models`, `datasets`, `views`, `loss_shapes`, `sweep_parameters`, `experiences`, `messages`, `tools`, `schemas`). Call this first. |
 | `list_experiences` | The lobby's experiences: id, title, summary, category, kind. |
 | `evaluate_losses` | Loss values and (sub)gradients at points. |
+| `sample_loss_shape` | A 3-D loss-shape view on a grid (at most 101 × 101): axes, values, clipped points, caption, and the slice that is the 2-D curve. |
 | `build_dataset` | A dataset's displayed coordinates, labels, axis names, and PCA explained variance. |
 | `train` | Train one model; returns the trajectory, final weights and bias, status, accuracy or RMSE, and support vectors for SVMs. |
 | `sweep` | Train to convergence at each value of one hyperparameter. |
 | `render_loss_chart` | Losses against their argument, as a PNG. |
 | `render_training_chart` | A model's training objective by step, as a PNG. |
+| `render_loss_shape` | A 3-D loss-shape view as a PNG surface, with an optional camera azimuth and elevation. |
 
 Full descriptions and input types are in the [capability reference](capabilities.md#tools); each input's JSON Schema is in [`capabilities.json`](capabilities.json), and clients receive it with the tool list.
 

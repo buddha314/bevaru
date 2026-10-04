@@ -14,6 +14,8 @@ use bevy::time::TimeUpdateStrategy;
 use super::*;
 use crate::SigmoidPlotPlugin;
 use crate::charts::{ChartSettings, Charts, ChartsPlugin, WeightImages};
+use crate::experiences::loss_shapes::{ShapeChart, ShapeControls, ShapeSampling};
+use crate::experiences::loss_surface::{ObjectiveControls, ObjectiveSurfaceState};
 use crate::experiences::sigmoid::{SigmoidExperiencePlugin, SigmoidRefresh, SigmoidSprite};
 use crate::experiences::{
     Experience, ExperienceEntity, ExperienceKind, RegisterExperience, Requirement,
@@ -21,8 +23,11 @@ use crate::experiences::{
 use crate::experiment::{
     DatasetChoice, Experiment, ExperimentLoader, ExperimentPlugin, ExperimentSpec, View,
 };
+use crate::orbit::OrbitRig;
 use crate::playback::{PaneViews, PlaybackPlugin, Sweep};
 use crate::scene::{PaneCamera, SceneEntity, ScenePlugin};
+use crate::shape_view::ShapePlot;
+use bevaru_core::shapes::ShapeView;
 
 /// Everything `DefaultPlugins` + `BevaruPlugin` + `LobbyPlugin` would add,
 /// minus the window, renderer, and egui.
@@ -140,6 +145,13 @@ fn assert_clean(app: &mut App) {
     assert_eq!(count::<With<PaneCamera>>(app), 0);
     assert_eq!(count::<With<ExperienceEntity>>(app), 0);
     assert!(!app.world().contains_resource::<SigmoidRefresh>());
+    assert!(!app.world().contains_resource::<ShapePlot>());
+    assert!(!app.world().contains_resource::<ShapeControls>());
+    assert!(!app.world().contains_resource::<ShapeSampling>());
+    assert!(!app.world().contains_resource::<ShapeChart>());
+    assert!(!app.world().contains_resource::<ObjectiveSurfaceState>());
+    assert!(!app.world().contains_resource::<ObjectiveControls>());
+    assert_eq!(count::<With<OrbitRig>>(app), 0);
 }
 
 #[test]
@@ -377,6 +389,7 @@ fn repeated_round_trips_do_not_grow_the_app() {
         .map(|e| e.id)
         .collect();
     assert!(ids.len() >= 4);
+    assert!(ids.contains(&"loss-shapes") && ids.contains(&"loss-surface"));
     for _ in 0..10 {
         for &id in &ids {
             enter(&mut app, id);
@@ -505,4 +518,50 @@ fn esc_in_the_lobby_does_not_exit() {
     app.update();
     assert!(exits(&mut app).is_empty());
     assert_eq!(screen(&app), AppScreen::Lobby);
+}
+
+#[test]
+fn loss_shapes_opens_on_cross_entropy_and_follows_the_controls() {
+    let mut app = lobby_app();
+    enter(&mut app, "loss-shapes");
+    assert_eq!(
+        app.world().resource::<ShapePlot>().view,
+        ShapeView::CrossEntropy
+    );
+    assert_eq!(count::<With<OrbitRig>>(&mut app), 1);
+
+    // A new view is sampled off the main thread, then swapped in.
+    app.world_mut().resource_mut::<ShapeControls>().view = ShapeView::PredictionHuber;
+    run_until(&mut app, "huber surface", |w| {
+        w.resource::<ShapePlot>().view == ShapeView::PredictionHuber
+    });
+    // Live hyperparameter: δ reaches the surface without leaving.
+    let delta = 2.0;
+    {
+        let mut controls = app.world_mut().resource_mut::<ShapeControls>();
+        controls.params.loss = controls.params.loss.with_huber_delta(delta).unwrap();
+    }
+    run_until(&mut app, "new δ", |w| {
+        w.resource::<ShapePlot>().params.loss.huber_delta() == delta
+            && !w.resource::<ShapeSampling>().is_sampling()
+    });
+    assert!(app.world().resource::<ShapeSampling>().error.is_none());
+    leave_now(&mut app);
+    assert_clean(&mut app);
+}
+
+#[test]
+fn loss_surface_opens_and_follows_the_controls() {
+    let mut app = lobby_app();
+    enter(&mut app, "loss-surface");
+    frames(&mut app, 2);
+    assert_eq!(count::<With<OrbitRig>>(&mut app), 1);
+    let before = app.world().resource::<ObjectiveSurfaceState>().max;
+    app.world_mut().resource_mut::<ObjectiveControls>().loss = bevaru_core::LossKind::Logistic;
+    frames(&mut app, 2);
+    let state = app.world().resource::<ObjectiveSurfaceState>();
+    assert_eq!(state.shown.loss, bevaru_core::LossKind::Logistic);
+    assert!(state.error.is_none() && state.max != before);
+    leave_now(&mut app);
+    assert_clean(&mut app);
 }

@@ -451,8 +451,12 @@ fn camera_input(
     scroll: Res<AccumulatedMouseScroll>,
     egui: Option<Res<EguiWantsInput>>,
     mut active: Local<Option<usize>>,
+    mut last_cursor: Local<Option<Vec2>>,
     mut cameras: Query<(&mut PaneCamera, &Projection)>,
 ) {
+    // Cursor deltas, not raw device motion, which some backends don't send.
+    let delta =
+        crate::orbit::pointer_delta(&mut last_cursor, window.cursor_position(), motion.delta);
     if egui.is_some_and(|e| e.wants_any_pointer_input()) {
         *active = None;
         return;
@@ -484,20 +488,20 @@ fn camera_input(
         Projection::Orthographic(_) => {
             rig.ortho_height = (rig.ortho_height * zoom).clamp(0.05, 500.0);
             if dragging {
-                let d = motion.delta * rig.ortho_height / height;
+                let d = delta * rig.ortho_height / height;
                 rig.target += Vec3::new(-d.x, d.y, 0.0);
             }
         }
         _ => {
             rig.distance = (rig.distance * zoom).clamp(0.5, 500.0);
             if buttons.pressed(MouseButton::Left) {
-                rig.yaw -= motion.delta.x * 0.008;
-                rig.pitch = (rig.pitch + motion.delta.y * 0.008).clamp(-1.5, 1.5);
+                rig.yaw -= delta.x * 0.008;
+                rig.pitch = (rig.pitch + delta.y * 0.008).clamp(-1.5, 1.5);
             } else if dragging {
                 let right = Vec3::new(-rig.yaw.sin(), rig.yaw.cos(), 0.0);
                 let up = Vec3::Z;
                 let k = rig.distance / height;
-                rig.target += (-motion.delta.x * right + motion.delta.y * up) * k;
+                rig.target += (-delta.x * right + delta.y * up) * k;
             }
         }
     }

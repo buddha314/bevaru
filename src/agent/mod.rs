@@ -14,6 +14,7 @@ pub mod tools;
 
 use std::collections::BTreeMap;
 
+use bevaru_core::shapes::{ShapeParams, ShapeView, Slice};
 use bevaru_core::{LossKind, LossParams, ModelKind, Task, TrainerConfig};
 use serde::{Deserialize, Serialize};
 
@@ -62,6 +63,8 @@ pub struct Manifest {
     pub models: Vec<ModelInfo>,
     pub datasets: Vec<DatasetInfo>,
     pub views: Vec<ViewInfo>,
+    /// The 3-D loss-shape views, for `sample_loss_shape` and `render_loss_shape`.
+    pub loss_shapes: Vec<LossShapeInfo>,
     pub sweep_parameters: Vec<SweepParamInfo>,
     pub experiences: Vec<ExperienceInfo>,
     pub messages: Vec<MessageInfo>,
@@ -160,6 +163,85 @@ pub struct DatasetInfo {
 pub struct ViewInfo {
     pub id: String,
     pub description: String,
+}
+
+/// One input axis of a loss-shape view.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShapeAxisInfo {
+    pub symbol: String,
+    pub name: String,
+    pub min: f64,
+    pub max: f64,
+}
+
+/// A 3-D loss-shape view: a loss over two inputs.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LossShapeInfo {
+    pub id: String,
+    pub title: String,
+    /// Family id, e.g. "two-scores".
+    pub family: String,
+    pub family_name: String,
+    /// Loss ids this view shows (three-class views list their binary counterparts).
+    pub losses: Vec<String>,
+    pub x_axis: ShapeAxisInfo,
+    pub y_axis: ShapeAxisInfo,
+    pub height_label: String,
+    /// Loss hyperparameters the view uses (`huber_delta`, `margin`).
+    pub hyperparameters: Vec<String>,
+    /// Heights above this are clipped (and flagged), for unbounded losses.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cap: Option<f64>,
+    /// Whether entropy-removed (KL) mode applies.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub entropy_removable: bool,
+    /// Where on the surface the 2-D loss curve lies, if the loss has one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slice: Option<String>,
+    pub caption: String,
+}
+
+/// Where a view's 2-D curve lies, in words.
+pub fn slice_description(slice: Slice) -> &'static str {
+    match slice {
+        Slice::ZeroTruth => "y = 0: along the prediction axis, ŷ is the residual.",
+        Slice::ZeroOtherScore => {
+            "z_other = 0: along the correct-class axis, z_correct is the margin."
+        }
+        Slice::CertainTruth => {
+            "p = 1: along the predicted-probability axis, with margin m = ln(q / (1 − q))."
+        }
+        Slice::HyperparameterRow => "The row at the requested hyperparameter value.",
+    }
+}
+
+pub(crate) fn loss_shape_info(view: ShapeView) -> LossShapeInfo {
+    let (x, y) = view.axes(3);
+    let axis = |a: &bevaru_core::shapes::Axis| ShapeAxisInfo {
+        symbol: a.symbol.clone(),
+        name: a.name.clone(),
+        min: a.min,
+        max: a.max,
+    };
+    let cap = view
+        .sample(&ShapeParams::default(), 3)
+        .ok()
+        .and_then(|g| g.cap);
+    LossShapeInfo {
+        id: view.id().into(),
+        title: view.title().into(),
+        family: view.family().id().into(),
+        family_name: view.family().name().into(),
+        losses: view.losses().iter().map(|l| l.id().into()).collect(),
+        x_axis: axis(&x),
+        y_axis: axis(&y),
+        height_label: view.height_label(false).into(),
+        hyperparameters: view.hyperparameters().iter().map(|h| (*h).into()).collect(),
+        cap,
+        entropy_removable: view == ShapeView::CrossEntropy,
+        slice: view.slice().map(|s| slice_description(s).into()),
+        caption: view.caption().into(),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -561,6 +643,7 @@ pub fn manifest(registry: &ExperienceRegistry) -> Manifest {
             ViewInfo { id: "features".into(), description: "Display 2 or 3 chosen feature columns; other features are held at their mean for the boundary slice.".into() },
             ViewInfo { id: "pca".into(), description: "Display the top 2 or 3 principal components, with each component's explained variance.".into() },
         ],
+        loss_shapes: ShapeView::ALL.into_iter().map(loss_shape_info).collect(),
         sweep_parameters: SweepParam::ALL.into_iter().map(sweep_info).collect(),
         experiences,
         messages: messages(),
@@ -614,6 +697,24 @@ mod tests {
             .find(|p| p.id == "huber-delta")
             .unwrap();
         assert_eq!(delta.applies_to, ["huber"]);
+    }
+
+    #[test]
+    fn every_loss_shape_view_is_described_once() {
+        let m = builtin_manifest();
+        let ids: Vec<&str> = m.loss_shapes.iter().map(|v| v.id.as_str()).collect();
+        let expected: Vec<&str> = ShapeView::ALL.iter().map(|v| v.id()).collect();
+        assert_eq!(ids, expected);
+        for v in &m.loss_shapes {
+            assert!(v.x_axis.min < v.x_axis.max && v.y_axis.min < v.y_axis.max);
+            assert!(!v.losses.is_empty() && !v.caption.is_empty() && !v.title.is_empty());
+        }
+        let ce = m
+            .loss_shapes
+            .iter()
+            .find(|v| v.id == ShapeView::CrossEntropy.id())
+            .unwrap();
+        assert!(ce.entropy_removable && ce.cap == Some(8.0) && ce.slice.is_some());
     }
 
     #[test]
