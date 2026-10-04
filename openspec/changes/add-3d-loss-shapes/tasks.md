@@ -1,11 +1,11 @@
 ## 1. Sampling (bevaru-core)
 
-- [ ] 1.1 Add `SurfaceGrid` and `Axis`, and `ObjectiveSurface::to_grid()`, keeping #18's API
-- [ ] 1.2 Add `cross_entropy(p, q)` and `entropy(p)`, numerically stable, with a test pinning logistic(m) = BCE(1, σ(m))
-- [ ] 1.3 Add `ShapeView` (exhaustive, kebab-case ids, `ALL`), `ShapeFamily`, `ShapeParams`, and per-view metadata: axes, ranges, height label, hyperparameters, slice, and caption
-- [ ] 1.4 Add the three-class losses (softmax cross-entropy via log-sum-exp, Weston–Watkins and Crammer–Singer hinges), and masked samples in `SurfaceGrid` for the simplex
-- [ ] 1.5 Implement `sample(view, params, resolution, mode)` for all five families via the existing `LossKind::value`, with the cross-entropy cap, a clipped mask, and entropy-removed (KL) mode
-- [ ] 1.6 Tests for the spec scenarios, including the three-class ones (only q_true matters; sum vs worst violation at (0.5, 0.5); agreement with the binary views when z₃ = −50): MSE diagonal is zero; hinge depends only on the gap; logistic = BCE; Huber rows equal 2-D curves; the cross-entropy valley is H(p); KL is ≥ 0 and zero on the diagonal; no infinities; every loss is covered
+- [x] 1.1 Add `SurfaceGrid` and `Axis`, and `ObjectiveSurface::to_grid()`, keeping #18's API
+- [x] 1.2 Add `cross_entropy(p, q)` and `entropy(p)`, numerically stable, with a test pinning logistic(m) = BCE(1, σ(m))
+- [x] 1.3 Add `ShapeView` (exhaustive, kebab-case ids, `ALL`), `ShapeFamily`, `ShapeParams`, and per-view metadata: axes, ranges, height label, hyperparameters, slice, and caption
+- [x] 1.4 Add the three-class losses (softmax cross-entropy via log-sum-exp, Weston–Watkins and Crammer–Singer hinges), and masked samples in `SurfaceGrid` for the simplex
+- [x] 1.5 Implement `sample(view, params, resolution, mode)` for all five families via the existing `LossKind::value`, with the cross-entropy cap, a clipped mask, and entropy-removed (KL) mode
+- [x] 1.6 Tests for the spec scenarios, including the three-class ones (only q_true matters; sum vs worst violation at (0.5, 0.5); agreement with the binary views when z₃ = −50): MSE diagonal is zero; hinge depends only on the gap; logistic = BCE; Huber rows equal 2-D curves; the cross-entropy valley is H(p); KL is ≥ 0 and zero on the diagonal; no infinities; every loss is covered
 
 ## 2. Rendering (bevaru)
 
