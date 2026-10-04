@@ -26,14 +26,14 @@
 
 ## 5. Presentation docs (`docs/presentation/`)
 
-- [ ] 5.1 `geometry.md`: provenance table, giving each operation and the Bevy type or crate that performs it, and the spike's evaluation of `bevy_procedural_meshes`, `bevy_prototype_lyon`, and Lyon
-- [ ] 5.2 `upstream-gaps.md`: concave `Polygon` meshing and extrusion (Bevy), rounded-rectangle primitive (Bevy), 3-D text (Bevy), tube or sweep along a path (`procedural_modelling` or `bevy_procedural_meshes`), and solid extrusion with caps (`bevy_procedural_meshes`). Each lists the upstream issues it found and has a draft issue. Nothing is filed without approval
-- [ ] 5.3 `shape-vocabulary.md`: the issue's shapes by ECMA-376 preset name, classification, FOSS route, and gap link
-- [ ] 5.4 `licensing.md`: the AGPL boundary with Euro-Office (no code, data, or translated formulas), ECMA-376 names as the source, permissive crates, and the open question on reusing definition formulas
-- [ ] 5.5 `slides.md`: the path from static capture (slide view) to an embedded WASM build and an editable 2-D fallback from `Diagram::project` as ECMA-376 presets
-- [ ] 5.6 README: a "Perceptron in 3D" section with a slide-view screenshot, links to `docs/presentation/`, and credit to vgarciasc/simulated-annealing-viz under credits
+- [x] 5.1 `geometry.md`: provenance table, giving each operation and the Bevy type or crate that performs it, and the spike's evaluation of `bevy_procedural_meshes`, `bevy_prototype_lyon`, and Lyon
+- [x] 5.2 `upstream-gaps.md`: concave `Polygon` meshing and extrusion (Bevy), rounded-rectangle primitive (Bevy), 3-D text (Bevy), tube or sweep along a path (`procedural_modelling` or `bevy_procedural_meshes`), and solid extrusion with caps (`bevy_procedural_meshes`). Each lists the upstream issues it found and has a draft issue. Nothing is filed without approval
+- [x] 5.3 `shape-vocabulary.md`: the issue's shapes by ECMA-376 preset name, classification, FOSS route, and gap link
+- [x] 5.4 `licensing.md`: the AGPL boundary with Euro-Office (no code, data, or translated formulas), ECMA-376 names as the source, permissive crates, and the open question on reusing definition formulas
+- [x] 5.5 `slides.md`: the path from static capture (slide view) to an embedded WASM build and an editable 2-D fallback from `Diagram::project` as ECMA-376 presets
+- [x] 5.6 README: a "Perceptron in 3D" section with a slide-view screenshot, links to `docs/presentation/`, and credit to vgarciasc/simulated-annealing-viz under credits
 
 ## 6. Verification
 
-- [ ] 6.1 `scripts/check.sh`; `scripts/check.sh --tests` before merging; regenerate `docs/agents/capabilities.*`
+- [x] 6.1 `scripts/check.sh`; `scripts/check.sh --tests` before merging; regenerate `docs/agents/capabilities.*`
 - [ ] 6.2 Look at the experience in a real window: orbit, live weights, the activation switch, labels, and a slide-view capture that reads well on a 16:9 slide

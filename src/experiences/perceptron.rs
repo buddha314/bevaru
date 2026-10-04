@@ -97,6 +97,7 @@ fn start(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    hidden: Option<Res<HideOverlays>>,
 ) {
     if started.id != ID {
         return;
@@ -125,9 +126,19 @@ fn start(
             Transform::default().looking_to(direction, Vec3::Z),
         ));
     }
+    // `BEVARU_SLIDE_VIEW=1` opens in slide view, for scripted slide captures.
+    let slide_on = std::env::var_os("BEVARU_SLIDE_VIEW").is_some();
+    let slide = SlideView {
+        on: slide_on,
+        inserted_hide: slide_on && hidden.is_none(),
+    };
+    if slide.inserted_hide {
+        commands.init_resource::<HideOverlays>();
+    }
+    let view = if slide_on { SLIDE } else { HOME };
     commands.spawn((
         ExperienceEntity,
-        OrbitRig::bundle(HOME),
+        OrbitRig::bundle(view),
         Camera {
             clear_color: ClearColorConfig::Custom(Color::WHITE),
             ..default()
@@ -144,7 +155,7 @@ fn start(
         diagram,
     });
     commands.insert_resource(controls);
-    commands.insert_resource(SlideView::default());
+    commands.insert_resource(slide);
 }
 
 fn stop(stopped: On<ExperienceStopped>, mut commands: Commands, slide: Option<Res<SlideView>>) {

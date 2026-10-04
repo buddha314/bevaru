@@ -130,6 +130,7 @@ Open one with `cargo run -- <id>`, or from the lobby.
 | `loss-curves` | Every loss, side by side | Loss functions | experiment | Classification losses against the margin and regression losses against the residual, live as you change δ and the margin. |
 | `loss-shapes` | Loss shapes in 3D | Loss functions | custom | Every loss as a surface over two quantities you know, such as truth and prediction or two class scores, with the familiar 2-D curve as a slice. |
 | `loss-surface` | Training objective in 3D | Loss functions | custom | The training objective over a model's weight and bias, for hinge, squared hinge, and logistic loss: the shape of training with each loss. |
+| `perceptron` | Perceptron in 3D | Diagrams | custom | A perceptron drawn for slides: inputs, weights, a sum, an activation, and the output, with weights you can change live. |
 | `sigmoid` | Sigmoid | Activation functions | custom | The logistic sigmoid σ(x) = 1 / (1 + e^−x), plotted with ruviz. |
 
 ## Messages

@@ -54,6 +54,7 @@ A window opens on the **lobby**:
 | `cargo run --release --example iris_svm` | The examples open the same experiences directly. Also available: `regression_mse_vs_mae`, `loss_curves`, `mnist_svm` (needs `--features mnist`) and `ml_interactive` (the sigmoid). |
 | `cargo run --release --example loss_shapes` | Open [Loss shapes in 3D](#loss-shapes-in-3d): every loss as a surface over two inputs. |
 | `cargo run --release --example loss_surface` | Open Training objective in 3D: the objective over a model's weight and bias for hinge, squared hinge, or logistic loss; change C, margin, or L2 strength. |
+| `cargo run --release --example perceptron_3d` | Open [Perceptron in 3D](#perceptron-in-3d): a slide-ready perceptron diagram. |
 
 ### Troubleshooting
 
@@ -78,6 +79,7 @@ Every experience, and how to open it directly:
 | Every loss, side by side | `cargo run --release -- loss-curves` | Every loss plotted against margin or residual. Edit δ and the hinge margin live while an SVM trains. |
 | Loss shapes in 3D | `cargo run --release -- loss-shapes` | Every loss as a 3-D surface over two inputs, with its 2-D curve as a highlighted slice. See [Loss shapes in 3D](#loss-shapes-in-3d). |
 | Training objective in 3D | `cargo run --release -- loss-surface` | The training objective over one weight and the bias, for hinge, squared hinge, and logistic loss. |
+| Perceptron in 3D | `cargo run --release -- perceptron` | A perceptron drawn for slides, with weights you can change live. See [Perceptron in 3D](#perceptron-in-3d). |
 | Sigmoid | `cargo run --release -- sigmoid` | The original scaffold: a ruviz sigmoid plot shown as a sprite. |
 
 ![MSE, MAE and Huber fits on data with outliers](docs/images/regression_mse_vs_mae.webp)
@@ -109,6 +111,24 @@ Losses are usually drawn as 2-D curves, but most of the ideas behind them involv
 
 Agents can get the same views through `bevaru-mcp`. `sample_loss_shape` returns the grid, and `render_loss_shape` returns a PNG.
 
+## Perceptron in 3D
+
+**Perceptron in 3D** (`cargo run --release -- perceptron`) draws the diagram every neural-network lecture starts with, in 3-D and ready to put on a slide:
+- **Inputs:** x₁, x₂, x₃ and a constant +1.
+- **Weights:** tubes into the sum Σ. Blue is positive, orange is negative, and thickness is |w|.
+- **Activation and output:** the sum feeds an activation (sigmoid or step), then the output y.
+- **Live controls:** drag the weights, bias, and activation, and the diagram updates in place.
+- **Slide view:** press **`H`** to hide every control, so a screenshot is the slide. `BEVARU_SLIDE_VIEW=1` opens straight into it.
+
+![A 3-D perceptron in slide view: inputs, weighted tubes, Σ, σ and y](docs/images/perceptron.webp)
+
+It is built only from Bevy's own primitives (spheres, cylinders, cones, and an extruded capsule). Bevaru positions and colours them and generates no geometry of its own. That's deliberate: bevaru composes existing FOSS geometry rather than becoming a shape library, and improves those libraries upstream where they fall short. [`docs/presentation/`](docs/presentation) records how this works:
+- [geometry provenance](docs/presentation/geometry.md): which crate performs each operation;
+- [upstream gap log](docs/presentation/upstream-gaps.md): what's missing, and where it belongs;
+- [presentation-shape vocabulary](docs/presentation/shape-vocabulary.md): common slide shapes by their ECMA-376 names, mapped onto the FOSS stack;
+- [licensing boundary](docs/presentation/licensing.md): with Euro-Office (AGPL-3.0);
+- [path to slides](docs/presentation/slides.md): images now, embedded WASM and editable PPTX/ODP shapes next.
+
 ## Visual verification walkthrough
 
 Run each experience from the repository root. The first build may take a few minutes.
@@ -123,6 +143,8 @@ Run each experience from the repository root. The first build may take a few min
 For a 3-D camera check, run Iris, select **3-D (third feature)**, and click **Load**. Left-drag to orbit, right-drag to pan, and scroll to zoom. Press `F` or click **Frame data** to fit every point in view again. Switch back to 2-D to check **Decision regions**; toggle **SVM margins** in either view.
 
 For the loss shapes, run `cargo run --release -- loss-shapes`. The binary cross-entropy surface should open, with its caption and the logistic curve on the right. Work through every family and loss: each shape should match its caption, the orange slice should match the 2-D curve, and the probe should show a downhill arrow (or "no gradient here" on flat regions). Drag δ or the margin where offered and change the resolution; the surface should update in place.
+
+For the perceptron diagram, run `cargo run --release -- perceptron`. Blue tubes should be positive weights and orange negative, thicker for larger |w|. Drag a weight through zero and watch its tube change colour and thickness. Switch the activation between sigmoid and step and watch the σ label change. Press `H`: the controls and the lobby button should disappear and the view should swing nearly front-on, with the labels kept. Press `H` again to bring the controls back.
 
 For the training objective, run `cargo run --release -- loss-surface` (or `--example loss_surface`). Its red X axis is one model weight, green Y is the bias, and blue Z is the training objective (mean loss plus L2 regularization) for eight fixed binary samples. Select **Hinge**, **Squared hinge**, or **Logistic (binary cross-entropy)** in the panel. Change **C** and **hinge margin** for SVM losses or **L2 λ** for logistic loss; the surface and its objective range should update. Left-drag to orbit, right-drag to pan, scroll to zoom, and press `F` to frame it again.
 
@@ -240,8 +262,9 @@ MNIST is optional, behind the `mnist` cargo feature.
   cargo test -p bevaru-core --features mnist --release -- --ignored
   ```
 
-## Datasets and credits
+## Datasets, credits, and inspiration
 
 - **Iris:** Fisher's Iris data (R. A. Fisher, 1936), public domain. The bundled copy is scikit-learn's, which fixes two errors in the UCI file.
 - **MNIST:** Y. LeCun, C. Cortes and C. J. C. Burges, *The MNIST database of handwritten digits*.
 - **Colours:** the Okabe–Ito palette, which stays distinguishable with common colour-vision deficiencies.
+- **Inspiration:** [vgarciasc/simulated-annealing-viz](https://github.com/vgarciasc/simulated-annealing-viz), an excellent example of explaining an algorithm by letting you watch it.

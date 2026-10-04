@@ -132,6 +132,13 @@
       "title": "Training objective in 3D"
     },
     {
+      "category": "Diagrams",
+      "id": "perceptron",
+      "kind": "custom",
+      "summary": "A perceptron drawn for slides: inputs, weights, a sum, an activation, and the output, with weights you can change live.",
+      "title": "Perceptron in 3D"
+    },
+    {
       "category": "Activation functions",
       "id": "sigmoid",
       "kind": "custom",
