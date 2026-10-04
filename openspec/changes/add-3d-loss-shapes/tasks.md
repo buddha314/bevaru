@@ -17,10 +17,10 @@
 
 ## 3. Experience
 
-- [ ] 3.1 Register the "Loss shapes in 3D" custom experience under *Loss functions*: controls panel, caption, the 2-D chart beside it, and off-thread re-sampling on change
-- [ ] 3.2 `examples/loss_shapes.rs` (via `shared::run_experience`); a thumbnail via `scripts/thumbnails.sh loss-shapes`
-- [ ] 3.3 Move #18's `loss_surface` example into `src/experiences/loss_surface.rs` as "Training objective in 3D"; reduce the example to `shared::run_experience("loss-surface")`; generate its thumbnail
-- [ ] 3.4 Add both experiences to the headless lobby tests, including the ten-round-trip leak test
+- [x] 3.1 Register the "Loss shapes in 3D" custom experience under *Loss functions*: controls panel, caption, the 2-D chart beside it, and off-thread re-sampling on change
+- [x] 3.2 `examples/loss_shapes.rs` (via `shared::run_experience`); a thumbnail via `scripts/thumbnails.sh loss-shapes`
+- [x] 3.3 Move #18's `loss_surface` example into `src/experiences/loss_surface.rs` as "Training objective in 3D"; reduce the example to `shared::run_experience("loss-surface")`; generate its thumbnail
+- [x] 3.4 Add both experiences to the headless lobby tests, including the ten-round-trip leak test
 
 ## 4. Agents
 

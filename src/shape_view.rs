@@ -30,7 +30,10 @@ impl Plugin for ShapeViewPlugin {
             )
             .add_systems(
                 EguiPrimaryContextPass,
-                overlay_labels.run_if(resource_exists::<ShapePlot>),
+                overlay_labels.run_if(
+                    resource_exists::<ShapePlot>
+                        .and_then(not(resource_exists::<crate::capture::HideOverlays>)),
+                ),
             );
     }
 }
@@ -119,7 +122,7 @@ impl ShapePlot {
         OrbitView {
             yaw: -1.1,
             pitch: 0.5,
-            distance: 24.0,
+            distance: 27.0,
             target: Vec3::new(0.0, 0.0, BOX_HEIGHT * 0.35),
         }
     }
@@ -591,9 +594,22 @@ fn overlay_labels(
     };
     let ink = egui::Color32::from_rgb(50, 50, 60);
     let small = egui::FontId::proportional(12.0);
+    // Centred on the projected point, but shifted to stay inside the view so
+    // a label never runs under a side panel.
     let label = |p: Vec3, text: String, font: egui::FontId| {
         if let Some(pos) = project(p) {
-            painter.text(pos, egui::Align2::CENTER_CENTER, text, font, ink);
+            let galley = painter.layout_no_wrap(text, font, ink);
+            let half = galley.size() / 2.0;
+            let inner = clip.shrink(4.0);
+            let x = pos.x.clamp(
+                inner.min.x + half.x,
+                (inner.max.x - half.x).max(inner.min.x + half.x),
+            );
+            let y = pos.y.clamp(
+                inner.min.y + half.y,
+                (inner.max.y - half.y).max(inner.min.y + half.y),
+            );
+            painter.galley(egui::pos2(x, y) - half, galley, ink);
         }
     };
     let (gx, gy) = (&plot.grid.x, &plot.grid.y);
@@ -625,7 +641,7 @@ fn overlay_labels(
             }
         }
         let mid_x = map.ground((gx.min + gx.max) / 2.0, gy.min) + out_y * 2.2;
-        let mid_y = map.ground(gx.max, (gy.min + gy.max) / 2.0) + out_x * 2.4;
+        let mid_y = map.ground(gx.max, (gy.min + gy.max) / 2.0) + out_x * 3.0;
         label(
             mid_x.extend(0.0),
             format!("{} — {}", gx.symbol, gx.name),

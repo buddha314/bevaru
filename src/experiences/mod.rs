@@ -32,6 +32,9 @@
 //! ```
 
 mod builtin;
+pub mod layout;
+pub mod loss_shapes;
+pub mod loss_surface;
 pub mod sigmoid;
 
 use std::fmt;
@@ -263,6 +266,13 @@ impl Plugin for ExperiencesPlugin {
             .init_resource::<ActiveExperience>()
             .add_observer(despawn_experience_entities);
         builtin::register(app);
+        app.add_plugins(layout::SideInsetsPlugin);
+        // The 3-D surfaces build meshes but need no renderer, so headless apps
+        // run them too (the lobby tests depend on that).
+        app.add_plugins((
+            loss_shapes::LossShapesExperiencePlugin,
+            loss_surface::LossSurfaceExperiencePlugin,
+        ));
         // The sigmoid experience draws a sprite, so it needs a renderer;
         // headless apps still list it.
         if app.is_plugin_added::<bevy::render::RenderPlugin>() {
@@ -312,6 +322,8 @@ mod tests {
             "regression-mse-vs-mae",
             "loss-curves",
             "mnist-svm",
+            "loss-shapes",
+            "loss-surface",
             "sigmoid",
         ] {
             let e = r.get(id).unwrap_or_else(|| panic!("{id} missing"));

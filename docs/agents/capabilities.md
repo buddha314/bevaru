@@ -79,6 +79,8 @@ Open one with `cargo run -- <id>`, or from the lobby.
 | `mnist-svm` | MNIST: 3 vs 8 | Classification | experiment | A linear SVM in all 784 pixel dimensions, seen through PCA, with the learned weights shown as an image. Needs the `mnist` feature. Downloads MNIST (~11 MB) once and caches it. |
 | `regression-mse-vs-mae` | Outliers: MSE vs MAE vs Huber | Regression | experiment | Three fits of the same data with 15% outliers: MSE is dragged toward them, MAE ignores them, Huber sits between. |
 | `loss-curves` | Every loss, side by side | Loss functions | experiment | Classification losses against the margin and regression losses against the residual, live as you change δ and the margin. |
+| `loss-shapes` | Loss shapes in 3D | Loss functions | custom | Every loss as a surface over two quantities you know, such as truth and prediction or two class scores, with the familiar 2-D curve as a slice. |
+| `loss-surface` | Training objective in 3D | Loss functions | custom | The training objective over a model's weight and bias, for hinge, squared hinge, and logistic loss: the shape of training with each loss. |
 | `sigmoid` | Sigmoid | Activation functions | custom | The logistic sigmoid σ(x) = 1 / (1 + e^−x), plotted with ruviz. |
 
 ## Messages

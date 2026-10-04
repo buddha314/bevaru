@@ -64,22 +64,28 @@ impl OrbitRig {
 
 fn orbit_cameras(
     mut rigs: Query<(&mut Transform, &mut OrbitRig)>,
-    buttons: Res<ButtonInput<MouseButton>>,
-    keys: Res<ButtonInput<KeyCode>>,
-    motion: Res<AccumulatedMouseMotion>,
-    scroll: Res<AccumulatedMouseScroll>,
+    // Optional, so headless apps (no input plugin) can still hold a rig.
+    buttons: Option<Res<ButtonInput<MouseButton>>>,
+    keys: Option<Res<ButtonInput<KeyCode>>>,
+    motion: Option<Res<AccumulatedMouseMotion>>,
+    scroll: Option<Res<AccumulatedMouseScroll>>,
     egui: Option<Res<EguiWantsInput>>,
     windows: Query<&Window>,
 ) {
     let height = windows.iter().next().map_or(900.0, |w| w.height().max(1.0));
     let pointer_free = !egui.as_ref().is_some_and(|e| e.wants_any_pointer_input());
     let keys_free = !egui.as_ref().is_some_and(|e| e.wants_any_keyboard_input());
+    let pressed_f = keys.is_some_and(|k| keys_free && k.just_pressed(KeyCode::KeyF));
+    let pointer = match (buttons, motion, scroll) {
+        (Some(b), Some(m), Some(s)) if pointer_free => Some((b, m, s)),
+        _ => None,
+    };
     for (mut transform, mut rig) in &mut rigs {
-        if rig.reset || (keys_free && keys.just_pressed(KeyCode::KeyF)) {
+        if rig.reset || pressed_f {
             rig.view = rig.home;
             rig.reset = false;
         }
-        if pointer_free {
+        if let Some((buttons, motion, scroll)) = &pointer {
             let view = &mut rig.view;
             let lines = match scroll.unit {
                 MouseScrollUnit::Line => scroll.delta.y,

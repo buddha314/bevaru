@@ -118,6 +118,20 @@
       "title": "Every loss, side by side"
     },
     {
+      "category": "Loss functions",
+      "id": "loss-shapes",
+      "kind": "custom",
+      "summary": "Every loss as a surface over two quantities you know, such as truth and prediction or two class scores, with the familiar 2-D curve as a slice.",
+      "title": "Loss shapes in 3D"
+    },
+    {
+      "category": "Loss functions",
+      "id": "loss-surface",
+      "kind": "custom",
+      "summary": "The training objective over a model's weight and bias, for hinge, squared hinge, and logistic loss: the shape of training with each loss.",
+      "title": "Training objective in 3D"
+    },
+    {
       "category": "Activation functions",
       "id": "sigmoid",
       "kind": "custom",
