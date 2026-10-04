@@ -7,11 +7,20 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # Bevy builds are large and this job builds several feature sets; full
+  # debug info and incremental caches overflowed the runner's disk (the
+  # linker died with SIGBUS). CI never needs a debugger.
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_INCREMENTAL: "0"
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
