@@ -749,7 +749,7 @@ fn overlay_labels(
             format!("loss = {:.4}", r.loss),
         ];
         if let Some((dx, dy)) = r.downhill {
-            lines.push(format!("−∇L = ({dx:.3}, {dy:.3})"));
+            lines.push(format!("downhill (−gradient) = ({dx:.3}, {dy:.3})"));
         }
         if let Some(note) = r.note {
             lines.push(note.into());
