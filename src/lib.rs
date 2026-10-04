@@ -14,6 +14,7 @@ pub mod experiences;
 pub mod experiment;
 pub mod geometry;
 pub mod lobby;
+pub mod loss_surface;
 pub mod playback;
 #[cfg(feature = "remote")]
 pub mod remote;

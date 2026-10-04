@@ -7,6 +7,7 @@ pub mod dataset;
 pub mod loss;
 pub mod model;
 pub mod projection;
+pub mod surface;
 
 pub use dataset::{BinaryTask, Dataset, DatasetError, Targets, TrainingData};
 pub use loss::{LossKind, LossParams, ParamError, Task};
