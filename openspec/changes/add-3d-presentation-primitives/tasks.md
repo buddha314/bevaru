@@ -24,16 +24,25 @@
 - [x] 4.4 `examples/perceptron_3d.rs` via `shared::run_experience`; thumbnail via `scripts/thumbnails.sh perceptron`
 - [x] 4.5 Headless lobby tests: open, live weight change, slide-view toggle, and the ten-round-trip leak test
 
-## 5. Presentation docs (`docs/presentation/`)
+## 5. Formula tooltips
 
-- [x] 5.1 `geometry.md`: provenance table, giving each operation and the Bevy type or crate that performs it, and the spike's evaluation of `bevy_procedural_meshes`, `bevy_prototype_lyon`, and Lyon
-- [x] 5.2 `upstream-gaps.md`: concave `Polygon` meshing and extrusion (Bevy), rounded-rectangle primitive (Bevy), 3-D text (Bevy), tube or sweep along a path (`procedural_modelling` or `bevy_procedural_meshes`), and solid extrusion with caps (`bevy_procedural_meshes`). Each lists the upstream issues it found and has a draft issue. Nothing is filed without approval
-- [x] 5.3 `shape-vocabulary.md`: the issue's shapes by ECMA-376 preset name, classification, FOSS route, and gap link
-- [x] 5.4 `licensing.md`: the AGPL boundary with Euro-Office (no code, data, or translated formulas), ECMA-376 names as the source, permissive crates, and the open question on reusing definition formulas
-- [x] 5.5 `slides.md`: the path from static capture (slide view) to an embedded WASM build and an editable 2-D fallback from `Diagram::project` as ECMA-376 presets
-- [x] 5.6 README: a "Perceptron in 3D" section with a slide-view screenshot, links to `docs/presentation/`, and credit to vgarciasc/simulated-annealing-viz under credits
+- [x] 5.1 `math` cargo feature (`ruviz/typst-math`), on by default; `bevaru-mcp` without default features; `scripts/check.sh` also compiles `--no-default-features`
+- [x] 5.2 `Formula { typst, text }` on nodes and edges; perceptron formulas with live values and sign colours (Σ, activation, output, inputs, weight terms)
+- [x] 5.3 `src/formula.rs`: typeset Typst math to an RGBA image via ruviz (or report that `math` is off); warm-up off the main thread
+- [x] 5.4 Hover picking (node discs first, then tube segments) as a pure function; egui tooltip with a cached texture, plain-text fallback, shown in slide view, hidden in thumbnail captures
+- [x] 5.5 Tests: perceptron formulas carry the values and colour negatives; activation switch changes the formula; picking; every formula typesets under `math`
+- [x] 5.6 `docs/presentation/math.md` (the research and choice); README and walkthrough mention hover formulas and the `math` feature
 
-## 6. Verification
+## 6. Presentation docs (`docs/presentation/`)
 
-- [x] 6.1 `scripts/check.sh`; `scripts/check.sh --tests` before merging; regenerate `docs/agents/capabilities.*`
-- [ ] 6.2 Look at the experience in a real window: orbit, live weights, the activation switch, labels, and a slide-view capture that reads well on a 16:9 slide
+- [x] 6.1 `geometry.md`: provenance table, giving each operation and the Bevy type or crate that performs it, and the spike's evaluation of `bevy_procedural_meshes`, `bevy_prototype_lyon`, and Lyon
+- [x] 6.2 `upstream-gaps.md`: concave `Polygon` meshing and extrusion (Bevy), rounded-rectangle primitive (Bevy), 3-D text (Bevy), tube or sweep along a path (`procedural_modelling` or `bevy_procedural_meshes`), and solid extrusion with caps (`bevy_procedural_meshes`). Each lists the upstream issues it found and has a draft issue. Nothing is filed without approval
+- [x] 6.3 `shape-vocabulary.md`: the issue's shapes by ECMA-376 preset name, classification, FOSS route, and gap link
+- [x] 6.4 `licensing.md`: the AGPL boundary with Euro-Office (no code, data, or translated formulas), ECMA-376 names as the source, permissive crates, and the open question on reusing definition formulas
+- [x] 6.5 `slides.md`: the path from static capture (slide view) to an embedded WASM build and an editable 2-D fallback from `Diagram::project` as ECMA-376 presets
+- [x] 6.6 README: a "Perceptron in 3D" section with a slide-view screenshot, links to `docs/presentation/`, and credit to vgarciasc/simulated-annealing-viz under credits
+
+## 7. Verification
+
+- [x] 7.1 `scripts/check.sh`; `scripts/check.sh --tests` before merging; regenerate `docs/agents/capabilities.*`
+- [ ] 7.2 Look at the experience in a real window: orbit, live weights, the activation switch, labels, and a slide-view capture that reads well on a 16:9 slide

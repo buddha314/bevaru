@@ -13,6 +13,7 @@ Bevaru composes geometry; it does not generate it. This page names the component
 | Group backdrop (input layer) | 2-D stadium extruded to a slab | Bevy `Capsule2d` + `Extrusion` (`Extrudable for Capsule2dMeshBuilder`) | chooses size and depth; one mesh per group |
 | Weight sign / magnitude | colour, radius | Bevy `StandardMaterial`; `Transform` scale | the encoding (Okabe–Ito blue / vermillion; radius from \|w\|) |
 | Labels | text placed at projected 3-D points | `egui` painter, positions from Bevy `Camera::world_to_viewport` | where each label anchors |
+| Formula tooltips | Typst math → RGBA image | Typst, via ruviz `typst-math` (the `math` feature); shown with egui | which formula, where (see [math typesetting](math.md)) |
 | Slide projection | world → slide coordinates | Bevy `PerspectiveProjection::get_clip_from_view` and the view transform | maps NDC to [0, 1]² |
 | Camera | orbit, pan, zoom | `bevaru::orbit` (input → `Transform`; no geometry) | the rig |
 

@@ -16,6 +16,7 @@ use bevy::camera::{CameraProjection, PerspectiveProjection};
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::formula::{Formula, typst_color};
 use crate::orbit::OrbitView;
 
 // ---------------------------------------------------------------------------
@@ -53,6 +54,9 @@ pub struct Node {
     /// circle of this radius in the diagram's plane, with a short straight
     /// edge band (`PILL_BAND`) and domed faces (`PILL_DOME`).
     pub radius: f32,
+    /// Shown when the pointer hovers the node.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formula: Option<Formula>,
 }
 
 /// The unit capsule's straight half-length, before flattening: it becomes
@@ -119,6 +123,9 @@ pub struct Edge {
     /// Draw an arrowhead at `to`.
     #[serde(default)]
     pub arrow: bool,
+    /// Shown when the pointer hovers the edge.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formula: Option<Formula>,
 }
 
 /// Nodes drawn on one backdrop, such as a layer.
@@ -188,6 +195,134 @@ fn weight_text(w: f64) -> String {
     }
 }
 
+/// A weight as a Typst math term coloured by its sign, like its tube:
+/// `#text(fill: …)[$0.8$]`.
+fn typst_weight(w: f64) -> String {
+    let color = match sign(w) {
+        Sign::Positive => POSITIVE,
+        Sign::Negative => NEGATIVE,
+        Sign::Zero => NEUTRAL,
+    };
+    let value = weight_text(w).replace('−', "-");
+    format!("#text(fill: {})[${value}$]", typst_color(color))
+}
+
+/// The perceptron's formulas, by node or edge id, with the current values.
+pub fn perceptron_formulas(
+    weights: [f64; 3],
+    bias: f64,
+    activation: Activation,
+) -> std::collections::HashMap<&'static str, Formula> {
+    let subs = ["₁", "₂", "₃"];
+    // z = 0.8·x₁ − 0.5·x₂ + 0.3·x₃ + 0.1. A negative term's own (coloured)
+    // minus sign is its operator; other terms after the first get a "+".
+    let terms: Vec<(f64, String, String)> = weights
+        .iter()
+        .enumerate()
+        .map(|(i, &w)| (w, format!("x_{}", i + 1), format!("·x{}", subs[i])))
+        .chain([(bias, String::new(), String::new())])
+        .collect();
+    let (mut typst_terms, mut text_terms) = (String::new(), String::new());
+    for (i, (w, typst_var, text_var)) in terms.iter().enumerate() {
+        let plus = if i > 0 && *w >= 0.0 { "+ " } else { "" };
+        typst_terms.push_str(&format!("{plus}{} {typst_var} ", typst_weight(*w)));
+        let text_op = match (i, *w < 0.0) {
+            (0, _) => "",
+            (_, true) => " − ",
+            (_, false) => " + ",
+        };
+        let shown = if i > 0 { w.abs() } else { *w };
+        text_terms.push_str(&format!("{text_op}{}{text_var}", weight_text(shown)));
+    }
+    let sum = Formula::new(
+        format!("$ z = sum_(i=1)^3 w_i x_i + b = {}$", typst_terms),
+        format!("z = Σᵢ wᵢxᵢ + b = {text_terms}"),
+    );
+    let (act, out) = match activation {
+        Activation::Sigmoid => (
+            Formula::new("$ sigma(z) = 1 / (1 + e^(-z)) $", "σ(z) = 1 / (1 + e^(−z))"),
+            Formula::new(
+                "$ hat(y) = sigma(bold(w)^top bold(x) + b) $",
+                "ŷ = σ(wᵀx + b)",
+            ),
+        ),
+        Activation::Step => (
+            Formula::new(
+                r#"$ H(z) = cases(1 & "if" z >= 0, 0 & "if" z < 0) $"#,
+                "H(z) = 1 if z ≥ 0, else 0",
+            ),
+            Formula::new("$ hat(y) = H(bold(w)^top bold(x) + b) $", "ŷ = H(wᵀx + b)"),
+        ),
+    };
+    let f_symbol = match activation {
+        Activation::Sigmoid => "sigma",
+        Activation::Step => "H",
+    };
+    let f_text = match activation {
+        Activation::Sigmoid => "σ",
+        Activation::Step => "H",
+    };
+    let mut map = std::collections::HashMap::new();
+    for (i, &w) in weights.iter().enumerate() {
+        let n = i + 1;
+        let id_node = ["x1", "x2", "x3"][i];
+        let id_edge = ["w1", "w2", "w3"][i];
+        map.insert(
+            id_node,
+            Formula::new(
+                format!(
+                    r#"$ "input" x_{n}, "contributing" w_{n} x_{n} = {} x_{n} $"#,
+                    typst_weight(w)
+                ),
+                format!(
+                    "input x{s}, contributing w{s}x{s} = {}·x{s}",
+                    weight_text(w),
+                    s = subs[i]
+                ),
+            ),
+        );
+        map.insert(
+            id_edge,
+            Formula::new(
+                format!("$ w_{n} = {} $", typst_weight(w)),
+                format!("w{} = {}", subs[i], weight_text(w)),
+            ),
+        );
+    }
+    map.insert(
+        "b",
+        Formula::new(
+            format!(
+                r#"$ "constant input" 1, "contributing" b = {} $"#,
+                typst_weight(bias)
+            ),
+            format!("constant input 1, contributing b = {}", weight_text(bias)),
+        ),
+    );
+    map.insert(
+        "wb",
+        Formula::new(
+            format!("$ b = {} $", typst_weight(bias)),
+            format!("b = {}", weight_text(bias)),
+        ),
+    );
+    map.insert("sum", sum);
+    map.insert(
+        "sum-act",
+        Formula::new("$ z = bold(w)^top bold(x) + b $", "z = wᵀx + b"),
+    );
+    map.insert(
+        "act-y",
+        Formula::new(
+            format!("$ hat(y) = {f_symbol}(z) $"),
+            format!("ŷ = {f_text}(z)"),
+        ),
+    );
+    map.insert("act", act);
+    map.insert("y", out);
+    map
+}
+
 impl Diagram {
     pub fn node(&self, id: &str) -> Option<&Node> {
         self.nodes.iter().find(|n| n.id == id)
@@ -238,6 +373,7 @@ impl Diagram {
             role,
             position: [x, 0.0, z],
             radius,
+            formula: None,
         };
         let mut nodes = vec![
             node("x1", "x₁", NodeRole::Input, -4.0, 2.4, 0.45),
@@ -264,6 +400,7 @@ impl Diagram {
             weight: Some(w),
             label: Some(format!("{name} = {}", weight_text(w))),
             arrow: false,
+            formula: None,
         };
         let arrow = |id: &str, from: &str, to: &str| Edge {
             id: id.into(),
@@ -272,8 +409,9 @@ impl Diagram {
             weight: None,
             label: None,
             arrow: true,
+            formula: None,
         };
-        Self {
+        let mut diagram = Self {
             nodes,
             edges: vec![
                 weighted("w1", "x1", "w₁", weights[0]),
@@ -288,7 +426,15 @@ impl Diagram {
                 label: "inputs".into(),
                 members: vec!["x1".into(), "x2".into(), "x3".into(), "b".into()],
             }],
+        };
+        let formulas = perceptron_formulas(weights, bias, activation);
+        for n in &mut diagram.nodes {
+            n.formula = formulas.get(n.id.as_str()).cloned();
         }
+        for e in &mut diagram.edges {
+            e.formula = formulas.get(e.id.as_str()).cloned();
+        }
+        diagram
     }
 
     /// Where each label sits in the world: node labels above their node,
@@ -743,6 +889,46 @@ impl Diagram {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Hover picking
+
+/// What the pointer is over.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HoverTarget {
+    Node(usize),
+    Edge(usize),
+}
+
+/// The node or edge under `pointer`, in screen coordinates. Nodes are
+/// discs (centre, radius); edges are segments, hit within `tolerance`.
+/// Nodes win over edges, and the nearest wins among each.
+pub fn pick(
+    nodes: &[Option<(Vec2, f32)>],
+    edges: &[Option<(Vec2, Vec2)>],
+    pointer: Vec2,
+    tolerance: f32,
+) -> Option<HoverTarget> {
+    let nearest = |it: &mut dyn Iterator<Item = (usize, f32)>| {
+        it.min_by(|a, b| a.1.total_cmp(&b.1)).map(|(i, _)| i)
+    };
+    let node = nearest(&mut nodes.iter().enumerate().filter_map(|(i, n)| {
+        let (c, r) = (*n)?;
+        let d = c.distance(pointer);
+        (d <= r).then_some((i, d))
+    }));
+    if let Some(i) = node {
+        return Some(HoverTarget::Node(i));
+    }
+    nearest(&mut edges.iter().enumerate().filter_map(|(i, e)| {
+        let (a, b) = (*e)?;
+        let ab = b - a;
+        let t = ((pointer - a).dot(ab) / ab.length_squared().max(1e-6)).clamp(0.0, 1.0);
+        let d = (a + ab * t).distance(pointer);
+        (d <= tolerance).then_some((i, d))
+    }))
+    .map(HoverTarget::Edge)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -771,6 +957,76 @@ mod tests {
         assert_eq!(step.node("act").unwrap().label, "step");
         let labels: Vec<String> = d.edges.iter().filter_map(|e| e.label.clone()).collect();
         assert_eq!(labels, ["w₁ = 0.8", "w₂ = −0.5", "w₃ = 0.3", "b = 0.1"]);
+    }
+
+    #[test]
+    fn formulas_carry_live_values_and_sign_colours() {
+        let d = perceptron();
+        let f = |id: &str| {
+            d.node(id)
+                .and_then(|n| n.formula.clone())
+                .or_else(|| d.edges.iter().find(|e| e.id == id)?.formula.clone())
+                .unwrap_or_else(|| panic!("{id} has no formula"))
+        };
+        let sum = f("sum");
+        assert_eq!(sum.text, "z = Σᵢ wᵢxᵢ + b = 0.8·x₁ − 0.5·x₂ + 0.3·x₃ + 0.1");
+        let negative = crate::formula::typst_color(NEGATIVE);
+        assert!(
+            sum.typst
+                .contains(&format!("#text(fill: {negative})[$-0.5$]"))
+        );
+        assert!(f("act").text.starts_with("σ(z)"));
+        let step = Diagram::perceptron([0.8, -0.5, 0.3], 0.1, Activation::Step);
+        let act = step.node("act").unwrap().formula.clone().unwrap();
+        assert!(act.text.starts_with("H(z)") && act.typst.contains("cases"));
+        // Every node and edge of the perceptron explains itself.
+        assert!(d.nodes.iter().all(|n| n.formula.is_some()));
+        assert!(d.edges.iter().all(|e| e.formula.is_some()));
+        let negative_bias = Diagram::perceptron([0.0, 1.0, -2.0], -0.25, Activation::Sigmoid);
+        let sum = negative_bias.node("sum").unwrap().formula.clone().unwrap();
+        assert_eq!(sum.text, "z = Σᵢ wᵢxᵢ + b = 0·x₁ + 1·x₂ − 2·x₃ − 0.25");
+    }
+
+    #[cfg(feature = "math")]
+    #[test]
+    fn every_perceptron_formula_typesets() {
+        let dump = std::env::var_os("BEVARU_DUMP_FORMULAS");
+        for activation in [Activation::Sigmoid, Activation::Step] {
+            for (id, f) in perceptron_formulas([0.8, -0.5, 0.3], -0.1, activation) {
+                let img = crate::formula::typeset(&f.typst, 22.0)
+                    .unwrap_or_else(|e| panic!("{id}: {e}\n{}", f.typst));
+                assert!(img.width > 4 && img.height > 4, "{id}");
+                if let Some(dir) = &dump {
+                    let rgba: Vec<u8> = img.rgba.clone();
+                    image::RgbaImage::from_raw(img.width as u32, img.height as u32, rgba)
+                        .unwrap()
+                        .save(std::path::Path::new(dir).join(format!("{activation:?}-{id}.png")))
+                        .unwrap();
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn picking_prefers_nodes_then_the_nearest_edge() {
+        let nodes = [Some((Vec2::new(100.0, 100.0), 20.0)), None];
+        let edges = [
+            Some((Vec2::new(0.0, 0.0), Vec2::new(200.0, 0.0))),
+            Some((Vec2::new(0.0, 10.0), Vec2::new(200.0, 10.0))),
+        ];
+        let p = |x, y| pick(&nodes, &edges, Vec2::new(x, y), 6.0);
+        assert_eq!(p(105.0, 95.0), Some(HoverTarget::Node(0)));
+        assert_eq!(p(50.0, 2.0), Some(HoverTarget::Edge(0)));
+        assert_eq!(p(50.0, 8.0), Some(HoverTarget::Edge(1)));
+        assert_eq!(p(50.0, 40.0), None);
+        // Beyond a segment's end is a miss.
+        assert_eq!(p(220.0, 0.0), None);
+        // A node over an edge wins.
+        let crossing = [Some((Vec2::new(50.0, 0.0), 10.0))];
+        assert_eq!(
+            pick(&crossing, &edges, Vec2::new(52.0, 1.0), 6.0),
+            Some(HoverTarget::Node(0))
+        );
     }
 
     #[test]
@@ -817,6 +1073,7 @@ mod tests {
             role: NodeRole::Sum,
             position: [1.0, 2.0, 3.0],
             radius: 0.7,
+            formula: None,
         };
         let h = n.half_size();
         assert!((n.surface_distance(Vec3::X) - h.x).abs() < 1e-5);

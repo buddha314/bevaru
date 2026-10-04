@@ -81,6 +81,39 @@ Changing a control SHALL update the diagram in place. Leaving SHALL leave nothin
 - **WHEN** the experience is entered and left ten times
 - **THEN** entity, mesh, material, and image counts return to the lobby baseline
 
+### Requirement: Formula tooltips
+Diagram nodes and edges MAY carry a formula, given as Typst math source and a plain-text fallback. In the perceptron experience, hovering a node or an edge that has a formula SHALL show it beside the pointer, typeset when bevaru is built with the `math` feature (on by default) and as the plain-text fallback otherwise. The perceptron's formulas SHALL include:
+- the weighted sum, z = Σ wᵢxᵢ + b, with the current weight values;
+- the active activation function, sigmoid or step;
+- the output;
+- each weight's term.
+
+They SHALL use the current values, and colour negative terms like negative tubes. Tooltips SHALL work in slide view and SHALL NOT appear in thumbnail captures. Typesetting SHALL NOT stall the frame noticeably: rendered formulas are cached, and the typesetting engine is initialised off the main thread.
+
+#### Scenario: Hover the sum
+- **WHEN** the pointer is over the Σ node with weights (0.8, −0.5, 0.3) and bias 0.1
+- **THEN** a tooltip shows z = Σᵢ wᵢxᵢ + b with those values, and the −0.5 term is coloured like a negative weight
+
+#### Scenario: Live update
+- **WHEN** a weight slider moves while the Σ tooltip is shown
+- **THEN** the tooltip shows the new value
+
+#### Scenario: Activation follows the control
+- **WHEN** the activation is switched from sigmoid to step
+- **THEN** the activation node's tooltip shows the step function instead of the sigmoid
+
+#### Scenario: Every formula typesets
+- **WHEN** bevaru is built with the `math` feature and each perceptron formula is typeset
+- **THEN** every one produces a non-empty image without error
+
+#### Scenario: Without the feature
+- **WHEN** bevaru is built without default features
+- **THEN** it compiles, and tooltips show the plain-text formulas
+
+#### Scenario: Picking
+- **WHEN** the pointer is within a node's projected disc, or within a few pixels of a tube's projected segment
+- **THEN** that node or edge is the hover target, preferring nodes over edges
+
 ### Requirement: Slide view
 The experience SHALL offer a slide view, toggled with `H`, that hides every control and the lobby button, keeps the diagram's labels, frames the diagram for a 16:9 slide on a white background, and leaves `Esc` returning to the lobby. A window capture taken in slide view SHALL be usable as a slide image.
 
@@ -95,6 +128,7 @@ The project SHALL document, under `docs/presentation/`:
 - **Shape vocabulary:** at least the issue's list of common presentation shapes (rectangle, rounded rectangle, ellipse, triangle, diamond, arrow, double arrow, curved arrow, chevron, star, cross, bracket, brace, callout, speech bubble, flowchart symbols, and straight, elbow, and curved connectors). Each is keyed by its ECMA-376 preset name, classified (fixed preset, adjust-parameterised, path-defined, or connector), and mapped to a route through the FOSS geometry stack, with gaps marked.
 - **Licensing boundary:** Euro-Office is AGPL-3.0 and is a reference only; no Euro-Office code, data, or translated formulas enter bevaru; shape names and semantics come from ECMA-376; any reuse of the standard's definition formulas is an open question.
 - **Path to slides:** static capture now, an embedded interactive (WASM) build later, and an editable 2-D fallback generated from the diagram model's projection as ECMA-376 presets.
+- **Math typesetting:** the options for formulas (Typst via ruviz, LaTeX via mitex, KaTeX, MathJax, MathML, and Tectonic), with what each is suited to and why Typst was chosen.
 
 The README SHALL describe the experience, link these documents, and credit [vgarciasc/simulated-annealing-viz](https://github.com/vgarciasc/simulated-annealing-viz) as an inspiration.
 

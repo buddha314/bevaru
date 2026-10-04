@@ -24,6 +24,9 @@ cargo fmt --all --check
 step "compile + clippy (default features)"
 cargo clippy --workspace --all-targets -- -D warnings
 
+step "compile + clippy (bevaru without default features: no math)"
+cargo clippy -p bevaru --all-targets --no-default-features -- -D warnings
+
 step "compile + clippy (mnist, remote)"
 cargo clippy --workspace --all-targets --features mnist,remote -- -D warnings
 

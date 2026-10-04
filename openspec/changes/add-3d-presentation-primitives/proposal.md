@@ -21,6 +21,10 @@ The same spike found real gaps worth taking upstream:
   - **Geometry:** round tablets (flattened capsules with domed faces) for nodes, and tubes for weights. Each tube's thickness and colour encode the weight's magnitude and sign. Cones mark direction.
   - **Labels:** text projected onto the screen, as the loss-shape axes are.
   - **Camera and capture:** the orbit rig, and a slide-ready framing with no control panels.
+- **Formula tooltips:** hover over a node or tube to see its formula, typeset like LaTeX, with live values and sign colours. For example, Σ shows z = Σ wᵢxᵢ + b and the current weights, and σ shows 1/(1 + e⁻ᶻ).
+  - **Typesetting:** Typst, through ruviz's existing `typst-math` feature, so no new crates.
+  - **Cargo feature:** a new `math` feature, on by default, because typesetting adds about 32 MB of fonts and engine. Without it, tooltips fall back to plain Unicode text.
+  - **Research:** the alternatives are recorded in `docs/presentation/math.md`.
 - **A small declarative diagram model:** nodes, edges, labels, and groups, with stable ids. This is the Bevaru-specific "semantics" layer.
   - **3-D rendering:** maps each kind to existing Bevy primitives.
   - **2-D projection:** gives slide coordinates for each element. This keeps an editable 2-D fallback (presentation shapes) possible later, without building it now.
@@ -36,7 +40,7 @@ The same spike found real gaps worth taking upstream:
 ## Capabilities
 
 ### New Capabilities
-- `presentation-diagrams`: the declarative diagram model, its 3-D rendering from existing primitives, the 2-D projection, the perceptron experience and example, slide-ready capture, the geometry-provenance rule, and the presentation docs (gap log, shape vocabulary, licensing boundary, path to slides).
+- `presentation-diagrams`: the declarative diagram model, its 3-D rendering from existing primitives, the 2-D projection, the perceptron experience and example, formula tooltips, slide-ready capture, the geometry-provenance rule, and the presentation docs (gap log, shape vocabulary, licensing boundary, path to slides).
 
 ### Modified Capabilities
 None. The new experience registers like any other, and the capability manifest lists it automatically.
@@ -52,6 +56,9 @@ None. The new experience registers like any other, and the capability manifest l
   - new `docs/presentation/` (gap log, shape vocabulary, licensing, path to slides);
   - a README section and credit;
   - regenerated `docs/agents/capabilities.*` (the new experience).
-- **Dependencies:** none. `bevy_procedural_meshes`, `bevy_prototype_lyon`, and Lyon were evaluated and recorded, and they're deferred until a shape needs them.
+- **Dependencies:** no new crates.
+  - **Geometry crates:** `bevy_procedural_meshes`, `bevy_prototype_lyon`, and Lyon were evaluated and recorded, and they're deferred until a shape needs them.
+  - **New `math` feature:** on by default, it enables ruviz's `typst-math` (Typst 0.13, Apache-2.0, about +32 MB).
+  - **`bevaru-mcp`:** depends on bevaru without default features, so it doesn't carry the fonts.
 - **Licensing:** no AGPL code or data is copied. The shape vocabulary cites ECMA-376 names.
 - **Existing behaviour:** unchanged.

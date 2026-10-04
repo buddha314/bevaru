@@ -136,7 +136,33 @@ The vocabulary cites the standard, not Euro-Office.
 
 Filing waits for the maintainer.
 
-### 11. The lobby
+### 11. Formula tooltips: Typst through ruviz, behind a `math` feature
+Hovering a node or a tube shows its formula, typeset, beside the pointer.
+- **Typesetting:** `ruviz::render::typst_text::render_raster` (ruviz's `typst-math` feature) turns Typst math into an RGBA image.
+  - **Speed:** in the spike, the first render took ~100 ms (fonts and engine setup) and later ones 0.2–0.7 ms.
+  - **Images:** become egui textures, cached by formula source and capped in size, so a weight change re-typesets only the formulas that changed.
+  - **Warm-up:** the engine is warmed up off the main thread when the experience starts, so the first hover doesn't stall.
+- **Syntax:** formulas are written in Typst math, not LaTeX.
+  - In the spike, LaTeX converted with `mitex` broke on `cases` alignment, `\mathbf`, and `\!`, because mitex's output needs its own Typst package, which is downloaded from the network.
+  - Formulas are bevaru's own, so writing them in Typst costs nothing. User-typed LaTeX is a non-goal.
+- **The model:** the diagram model carries each formula as `Formula { typst, text }`.
+  - `typst` is typeset.
+  - `text` is a plain Unicode fallback, used when the `math` feature is off, and later by slide export and accessibility.
+  - The perceptron's formulas carry live values, with negative terms in the same vermillion as negative tubes.
+- **Picking:** the pointer is tested against each node's projected disc and each tube's projected segment (a few pixels' tolerance), using the same camera projection as the labels. It's a pure function, tested without a GPU.
+- **Where tooltips show:** in slide view too, so a presenter can hover live. They don't show during thumbnail capture.
+- **The feature:** `math = ["ruviz/typst-math"]`, on by default; it adds about 32 MB, mostly embedded fonts.
+  - `bevaru-mcp` depends on bevaru without default features.
+  - `scripts/check.sh` also compiles bevaru with `--no-default-features`, so the fallback path keeps building.
+
+*Alternatives,* recorded in `docs/presentation/math.md`:
+- **KaTeX:** produces HTML, so it needs a browser. It's the right route for a later WASM build.
+- **MathJax:** needs a JavaScript runtime.
+- **Tectonic:** a full TeX engine, far too heavy.
+- **`pulldown-latex`:** produces MathML. It's the route for editable ODP export later.
+- **Typst 0.15 directly:** a second copy of the engine beside ruviz's 0.13.
+
+### 12. The lobby
 "Perceptron in 3D" (id `perceptron`) is a custom experience in a new **Diagrams** category, and `examples/perceptron_3d.rs` opens it.
 - **Clean-up:** like the loss shapes, its entities carry `ExperienceEntity`, its resources go on stop, and it's added only when mesh assets and gizmos exist.
 - **Tests:** it joins the ten-round-trip leak test.

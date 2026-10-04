@@ -118,6 +118,7 @@ Agents can get the same views through `bevaru-mcp`. `sample_loss_shape` returns 
 - **Weights:** tubes into the sum Σ. Blue is positive, orange is negative, and thickness is |w|.
 - **Activation and output:** the sum feeds an activation (sigmoid or step), then the output y.
 - **Live controls:** drag the weights, bias, and activation, and the diagram updates in place.
+- **Formulas on hover:** point at a node or tube to see its formula, typeset with the live values: z = Σ wᵢxᵢ + b, σ(z) = 1/(1 + e⁻ᶻ), each weight's term. They work in slide view too, so you can present with them. Typesetting uses Typst through ruviz (the `math` feature, on by default, about +32 MB). Without it (`--no-default-features`), formulas show as plain text. See [math typesetting](docs/presentation/math.md).
 - **Slide view:** press **`H`** to hide every control, so a screenshot is the slide. `BEVARU_SLIDE_VIEW=1` opens straight into it.
 
 ![A 3-D perceptron in slide view: inputs, weighted tubes, Σ, σ and y](docs/images/perceptron.webp)
@@ -127,7 +128,8 @@ It is built only from Bevy's own primitives: capsules flattened into round, dome
 - [upstream gap log](docs/presentation/upstream-gaps.md): what's missing, and where it belongs;
 - [presentation-shape vocabulary](docs/presentation/shape-vocabulary.md): common slide shapes by their ECMA-376 names, mapped onto the FOSS stack;
 - [licensing boundary](docs/presentation/licensing.md): with Euro-Office (AGPL-3.0);
-- [path to slides](docs/presentation/slides.md): images now, embedded WASM and editable PPTX/ODP shapes next.
+- [path to slides](docs/presentation/slides.md): images now, embedded WASM and editable PPTX/ODP shapes next;
+- [math typesetting](docs/presentation/math.md): how formulas are typeset, and the alternatives.
 
 ## Visual verification walkthrough
 
@@ -144,7 +146,7 @@ For a 3-D camera check, run Iris, select **3-D (third feature)**, and click **Lo
 
 For the loss shapes, run `cargo run --release -- loss-shapes`. The binary cross-entropy surface should open, with its caption and the logistic curve on the right. Work through every family and loss: each shape should match its caption, the orange slice should match the 2-D curve, and the probe should show a downhill arrow (or "no gradient here" on flat regions). Drag δ or the margin where offered and change the resolution; the surface should update in place.
 
-For the perceptron diagram, run `cargo run --release -- perceptron`. Blue tubes should be positive weights and orange negative, thicker for larger |w|. Drag a weight through zero and watch its tube change colour and thickness. Switch the activation between sigmoid and step and watch the σ label change. Press `H`: the controls and the lobby button should disappear and the view should swing nearly front-on, with the labels kept. Press `H` again to bring the controls back.
+For the perceptron diagram, run `cargo run --release -- perceptron`. Blue tubes should be positive weights and orange negative, thicker for larger |w|. Drag a weight through zero and watch its tube change colour and thickness. Switch the activation between sigmoid and step and watch the σ label change. Hover over Σ: a tooltip should show z = Σ wᵢxᵢ + b with the current weights, the negative ones in orange. Move a weight and the tooltip should follow. Hover over σ to see the activation's formula. Press `H`: the controls and the lobby button should disappear and the view should swing nearly front-on, with the labels kept. Press `H` again to bring the controls back.
 
 For the training objective, run `cargo run --release -- loss-surface` (or `--example loss_surface`). Its red X axis is one model weight, green Y is the bias, and blue Z is the training objective (mean loss plus L2 regularization) for eight fixed binary samples. Select **Hinge**, **Squared hinge**, or **Logistic (binary cross-entropy)** in the panel. Change **C** and **hinge margin** for SVM losses or **L2 λ** for logistic loss; the surface and its objective range should update. Left-drag to orbit, right-drag to pan, scroll to zoom, and press `F` to frame it again.
 

@@ -13,6 +13,7 @@ pub mod controls;
 pub mod diagram;
 pub mod experiences;
 pub mod experiment;
+pub mod formula;
 pub mod geometry;
 pub mod lobby;
 pub mod loss_surface;
