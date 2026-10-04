@@ -22,15 +22,19 @@ jobs:
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy
-        run: cargo clippy --workspace --all-targets --features mnist -- -D warnings
+        run: cargo clippy --workspace --all-targets --features mnist,remote -- -D warnings
       - name: Core tests (no Bevy)
         run: cargo test -p bevaru-core
       - name: Core tests with MNIST loader
         run: cargo test -p bevaru-core --features mnist
       - name: Plugin tests (headless)
         run: cargo test -p bevaru
+      - name: Remote-control tests
+        run: cargo test -p bevaru --features remote
       - name: Build examples
         run: cargo build --examples --features mnist
+      - name: Agent tools (MCP server, headless end to end)
+        run: cargo test -p bevaru-mcp
       - name: Core has no Bevy dependency
         run: |
           if cargo tree -p bevaru-core --features mnist -e normal | grep -q '\bbevy'; then

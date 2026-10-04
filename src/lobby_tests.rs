@@ -26,7 +26,7 @@ use crate::scene::{PaneCamera, SceneEntity, ScenePlugin};
 
 /// Everything `DefaultPlugins` + `BevaruPlugin` + `LobbyPlugin` would add,
 /// minus the window, renderer, and egui.
-fn headless(lobby: Option<LobbyPlugin>) -> App {
+pub(crate) fn headless(lobby: Option<LobbyPlugin>) -> App {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
@@ -62,7 +62,7 @@ fn lobby_app() -> App {
 }
 
 /// Step until `done` holds (async loads and renders need wall-clock time).
-fn run_until(app: &mut App, what: &str, done: impl Fn(&World) -> bool) {
+pub(crate) fn run_until(app: &mut App, what: &str, done: impl Fn(&World) -> bool) {
     // Generous wall-clock limit: under a parallel test run, background loads
     // share the task pool with every other test.
     let deadline = std::time::Instant::now() + Duration::from_secs(60);

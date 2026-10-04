@@ -299,7 +299,7 @@ pub fn list(registry: &ExperienceRegistry) -> String {
 
 #[cfg(test)]
 #[path = "lobby_tests.rs"]
-mod tests;
+pub(crate) mod tests;
 
 pub mod ui {
     //! The lobby's egui screens: the card grid, the loading screen, and the

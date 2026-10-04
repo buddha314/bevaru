@@ -36,6 +36,24 @@ impl LossKind {
         LossKind::ZeroOne,
     ];
 
+    /// Stable kebab-case identifier for APIs and tools. Unlike [`name`](Self::name),
+    /// it never changes for presentation reasons.
+    pub fn id(self) -> &'static str {
+        match self {
+            LossKind::Mse => "mse",
+            LossKind::Mae => "mae",
+            LossKind::Huber => "huber",
+            LossKind::Hinge => "hinge",
+            LossKind::SquaredHinge => "squared-hinge",
+            LossKind::Logistic => "logistic",
+            LossKind::ZeroOne => "zero-one",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|l| l.id() == id)
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             LossKind::Mse => "Mean squared error",
@@ -248,6 +266,10 @@ mod tests {
 
     #[test]
     fn all_losses_enumerable_with_names() {
+        for l in LossKind::ALL {
+            assert_eq!(LossKind::from_id(l.id()), Some(l));
+        }
+        assert_eq!(LossKind::from_id("Hinge"), None);
         assert_eq!(LossKind::ALL.len(), 7);
         for l in LossKind::ALL {
             assert!(!l.name().is_empty());

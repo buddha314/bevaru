@@ -9,6 +9,8 @@
 //!   `scripts/thumbnails.sh` runs it for every built-in experience.
 
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use bevy::app::AppExit;
 use bevy::prelude::*;
@@ -20,6 +22,11 @@ use crate::experiment::Experiment;
 use crate::scene::UiInsets;
 
 pub const THUMBNAIL_SIZE: (u32, u32) = (480, 270);
+
+/// How long to wait for a requested screenshot before giving up. Frames can
+/// stall (a hidden window, a GPU waking from power saving), so exit only once
+/// the image is written, or after this long with an error.
+const CAPTURE_TIMEOUT_SECS: f32 = 30.0;
 
 /// Present while capturing a thumbnail: UI overlays (labels, buttons) hide.
 #[derive(Resource, Debug, Default)]
@@ -71,11 +78,13 @@ impl Plugin for CapturePlugin {
         if config.mode == CaptureMode::Thumbnail {
             app.init_resource::<HideOverlays>();
         }
+        let saved = Arc::new(AtomicBool::new(false));
         app.add_systems(
             Update,
             move |mut commands: Commands,
                   time: Res<Time<Real>>,
                   mut state: Local<u8>,
+                  mut requested_at: Local<f32>,
                   mut exit: MessageWriter<AppExit>,
                   window: Single<&Window, With<PrimaryWindow>>,
                   insets: Option<Res<UiInsets>>,
@@ -90,15 +99,27 @@ impl Plugin for CapturePlugin {
                         scene_rect(&window, insets)
                     });
                     let path = config.path.clone();
+                    let saved = saved.clone();
                     commands.spawn(Screenshot::primary_window()).observe(
-                        move |shot: On<ScreenshotCaptured>| match save(&shot.image, crop, &path) {
-                            Ok(()) => info!("bevaru: saved {}", path.display()),
-                            Err(e) => error!("bevaru: capture failed: {e}"),
+                        move |shot: On<ScreenshotCaptured>| {
+                            match save(&shot.image, crop, &path) {
+                                Ok(()) => info!("bevaru: saved {}", path.display()),
+                                Err(e) => error!("bevaru: capture failed: {e}"),
+                            }
+                            saved.store(true, Ordering::SeqCst);
                         },
                     );
+                    *requested_at = t;
                     *state = 1;
-                } else if *state == 1 && t > config.after_secs + 1.5 {
+                } else if *state == 1 && saved.load(Ordering::SeqCst) {
                     exit.write(AppExit::Success);
+                    *state = 2;
+                } else if *state == 1 && t > *requested_at + CAPTURE_TIMEOUT_SECS {
+                    error!(
+                        "bevaru: no screenshot after {CAPTURE_TIMEOUT_SECS} s (is the window hidden?); exiting without one"
+                    );
+                    exit.write(AppExit::error());
+                    *state = 2;
                 }
             },
         );

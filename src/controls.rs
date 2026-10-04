@@ -895,13 +895,7 @@ fn sweep_section(
                     }
                 });
             if spec.param != before {
-                (spec.from, spec.to, spec.log) = match spec.param {
-                    SweepParam::C => (0.01, 100.0, true),
-                    SweepParam::Lambda => (1e-4, 1.0, true),
-                    SweepParam::HuberDelta => (0.1, 3.0, true),
-                    SweepParam::Margin => (0.25, 2.5, false),
-                    SweepParam::LearningRate => (1e-3, 0.5, true),
-                };
+                (spec.from, spec.to, spec.log) = spec.param.default_range();
             }
             ui.horizontal(|ui| {
                 ui.label("from");

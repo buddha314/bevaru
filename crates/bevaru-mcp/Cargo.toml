@@ -1,0 +1,30 @@
+[package]
+name = "bevaru-mcp"
+version = "0.1.0"
+edition.workspace = true
+description = "MCP server and doc generator that make bevaru easy for AI agents to use"
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+mnist = ["bevaru/mnist"]
+
+[dependencies]
+bevaru = { path = "../..", version = "0.1.0" }
+rmcp = { version = "3.5", features = ["server", "transport-io", "macros"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "1"
+base64 = "0.22"
+# Talks to a running app over localhost HTTP only, so no TLS.
+ureq = { version = "3", default-features = false, features = ["json"] }
+
+[dev-dependencies]
+# The end-to-end bridge test runs a real app with remote control.
+bevaru = { path = "../..", features = ["remote"] }
+bevy = { version = "=0.19.1", default-features = false }
+rmcp = { version = "3.5", features = ["client", "transport-child-process"] }
