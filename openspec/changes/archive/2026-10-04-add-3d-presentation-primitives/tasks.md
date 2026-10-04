@@ -45,4 +45,4 @@
 ## 7. Verification
 
 - [x] 7.1 `scripts/check.sh`; `scripts/check.sh --tests` before merging; regenerate `docs/agents/capabilities.*`
-- [ ] 7.2 Look at the experience in a real window: orbit, live weights, the activation switch, labels, and a slide-view capture that reads well on a 16:9 slide
+- [x] 7.2 Look at the experience in a real window: orbit, live weights, the activation switch, labels, and a slide-view capture that reads well on a 16:9 slide
