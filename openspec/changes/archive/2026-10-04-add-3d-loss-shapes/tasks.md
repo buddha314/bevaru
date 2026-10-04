@@ -33,4 +33,4 @@
 
 - [x] 5.1 README: a "Loss shapes in 3D" section with a screenshot, linked from the lobby section
 - [x] 5.2 Check that it compiles with `scripts/check.sh`; run the test suites once with `scripts/check.sh --tests` before merging (not on every push)
-- [ ] 5.3 Look at every view in a real window: shapes, captions, slice, probe, legend, and resolution changes
+- [x] 5.3 Look at every view in a real window: shapes, captions, slice, probe, legend, and resolution changes
