@@ -56,11 +56,10 @@ Jackdaw (`jd` 0.19.0, Bevy 0.19, MIT/Apache-2.0) is an early-stage, standalone s
 - **Independent of the lobby:** the plugin doesn't need it, so a user's own game adds `AuthoringPlugin` alone.
 
 ### 3. Lobby overrides: entities in, layout out
-- **Collecting entries:** a system gathers `LobbyEntry` components into a `LobbyLayout` resource, mapping each experience id to its overrides.
-- **Applying them:** the lobby UI applies them when it lists cards: order within and across categories, title, summary, category, and hidden.
+- **Applying entries:** `ExperienceRegistry::lobby_layout(entries)` is a pure function. The lobby UI calls it each frame with the current `LobbyEntry` components, so there is no resource to keep in sync. It produces the categories and cards, applying order within and across categories, title, summary, category, and hidden.
   - **Unknown experience ids** are ignored, with one warning each.
   - **Ordering:** experiences without an entry keep registration order after the ordered ones.
-  - **Unchanged without entries:** with no `LobbyEntry`, `LobbyLayout` is empty and the lobby is byte-for-byte today's.
+  - **Unchanged without entries:** with no `LobbyEntry`, the layout equals `by_category`, which is today's lobby.
 - **Hidden cards:** `hidden` removes the card from the lobby only. `cargo run -- <id>`, the examples, `--list`, and agents still reach the experience. Hiding is presentation, not availability.
 
 ### 4. A standalone Jackdaw project at `jackdaw/`

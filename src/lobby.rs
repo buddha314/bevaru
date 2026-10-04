@@ -312,7 +312,7 @@ pub mod ui {
     use bevy_egui::{EguiContexts, EguiPrimaryContextPass, EguiTextureHandle, egui};
 
     use super::{AppScreen, EnterExperience, LeaveExperience, LobbyErrors};
-    use crate::experiences::{ActiveExperience, Experience, ExperienceRegistry, Thumbnail};
+    use crate::experiences::{ActiveExperience, ExperienceRegistry, LobbyCard, Thumbnail};
     use crate::experiment::{Experiment, ExperimentLoader};
 
     pub struct LobbyUiPlugin;
@@ -369,7 +369,16 @@ pub mod ui {
         assets: Res<AssetServer>,
         mut enter: MessageWriter<EnterExperience>,
         mut exit: MessageWriter<AppExit>,
+        entries: Query<&crate::authoring::LobbyEntry>,
+        mut warned: Local<std::collections::HashSet<String>>,
     ) -> Result {
+        let entries: Vec<_> = entries.iter().collect();
+        let layout = registry.lobby_layout(&entries);
+        for id in &layout.unknown {
+            if warned.insert(id.clone()) {
+                warn!("bevaru: a LobbyEntry names unknown experience {id:?}; ignoring it");
+            }
+        }
         for e in registry.iter() {
             if !thumbnails.0.contains_key(e.id) {
                 let handle = match e.thumbnail {
@@ -415,9 +424,9 @@ pub mod ui {
                 const CARD_GAP: f32 = 14.0;
                 const CATEGORY_GAP: f32 = 28.0;
                 let width = ui.available_width();
-                let mut rows: Vec<Vec<(&str, Vec<&Experience>)>> = vec![Vec::new()];
+                let mut rows: Vec<Vec<(&str, &Vec<LobbyCard>)>> = vec![Vec::new()];
                 let mut used = 0.0;
-                for (category, experiences) in registry.by_category() {
+                for (category, experiences) in &layout.categories {
                     let w = experiences.len() as f32 * (CARD_WIDTH + CARD_GAP) + CATEGORY_GAP;
                     let row = rows.last_mut().expect("rows starts non-empty");
                     if !row.is_empty() && used + w > width {
@@ -425,7 +434,9 @@ pub mod ui {
                         used = 0.0;
                     }
                     used += w;
-                    rows.last_mut().expect("just pushed").push((category, experiences));
+                    rows.last_mut()
+                        .expect("just pushed")
+                        .push((category.as_str(), experiences));
                 }
                 for row in rows {
                     ui.horizontal_top(|ui| {
@@ -436,9 +447,10 @@ pub mod ui {
                                 ui.add_space(4.0);
                                 ui.horizontal_top(|ui| {
                                     ui.spacing_mut().item_spacing.x = CARD_GAP;
-                                    for e in experiences {
+                                    for c in experiences {
+                                        let e = c.experience;
                                         let thumb = thumbnails.0.get(e.id).copied().flatten();
-                                        if card(ui, e, thumb, errors.0.get(e.id)) {
+                                        if card(ui, c, thumb, errors.0.get(e.id)) {
                                             enter.write(EnterExperience(e.id));
                                         }
                                     }
@@ -456,10 +468,11 @@ pub mod ui {
     /// One experience card; returns true when activated.
     fn card(
         ui: &mut egui::Ui,
-        e: &Experience,
+        card: &LobbyCard,
         thumbnail: Option<egui::TextureId>,
         error: Option<&String>,
     ) -> bool {
+        let e = card.experience;
         let available = e.is_available();
         let frame = egui::Frame::group(ui.style())
             .inner_margin(8.0)
@@ -475,11 +488,11 @@ pub mod ui {
                                 Some(id) => {
                                     ui.image(egui::load::SizedTexture::new(id, THUMB_SIZE));
                                 }
-                                None => placeholder(ui, e.title),
+                                None => placeholder(ui, &card.title),
                             }
                             ui.add_space(4.0);
-                            ui.label(egui::RichText::new(e.title).strong().size(16.0));
-                            ui.label(e.summary);
+                            ui.label(egui::RichText::new(&card.title).strong().size(16.0));
+                            ui.label(&card.summary);
                             if let Some(note) = e.note {
                                 ui.small(note);
                             }

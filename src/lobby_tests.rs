@@ -641,3 +641,21 @@ fn perceptron_follows_its_controls_and_toggles_slide_view() {
     leave_now(&mut app);
     assert_clean(&mut app);
 }
+
+#[test]
+fn hidden_lobby_entries_still_start_by_id() {
+    let mut app = lobby_app();
+    app.world_mut().spawn(crate::authoring::LobbyEntry {
+        experience: "sigmoid".into(),
+        hidden: true,
+        ..Default::default()
+    });
+    frames(&mut app, 2);
+    enter(&mut app, "sigmoid");
+    assert_eq!(
+        app.world().resource::<ActiveExperience>().0,
+        Some("sigmoid")
+    );
+    // `--list` still includes it: hiding is presentation, not availability.
+    assert!(list(app.world().resource::<ExperienceRegistry>()).contains("sigmoid"));
+}

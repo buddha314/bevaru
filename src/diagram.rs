@@ -168,7 +168,8 @@ impl fmt::Display for DiagramError {
 impl std::error::Error for DiagramError {}
 
 /// The perceptron's activation function.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, Reflect)]
+#[reflect(Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum Activation {
     Step,
@@ -769,6 +770,54 @@ pub fn spawn_diagram(
         }
     });
     root.id()
+}
+
+/// Paint a diagram's labels with egui, projected through `camera` and kept
+/// inside `clip`. `to_world` maps the diagram's coordinates to the world
+/// (the identity, or an authored entity's transform).
+pub fn paint_labels(
+    painter: &bevy_egui::egui::Painter,
+    clip: bevy_egui::egui::Rect,
+    camera: &Camera,
+    cam: &GlobalTransform,
+    diagram: &Diagram,
+    to_world: &dyn Fn(Vec3) -> Vec3,
+) {
+    use bevy::color::ColorToPacked;
+    use bevy_egui::egui;
+    let ink = egui::Color32::from_rgb(40, 40, 50);
+    let color = |c: Color| {
+        let [r, g, b, _] = c.to_srgba().to_u8_array();
+        egui::Color32::from_rgb(r, g, b)
+    };
+    for anchor in diagram.label_anchors() {
+        let Ok(pos) = camera.world_to_viewport(cam, to_world(anchor.at)) else {
+            continue;
+        };
+        let weight = diagram
+            .edges
+            .iter()
+            .find(|e| e.id == anchor.id)
+            .and_then(|e| e.weight);
+        let (size, fill) = match weight.map(sign) {
+            Some(Sign::Positive) => (17.0, color(POSITIVE)),
+            Some(Sign::Negative) => (17.0, color(NEGATIVE)),
+            Some(Sign::Zero) => (17.0, ink),
+            None => (22.0, ink),
+        };
+        let galley = painter.layout_no_wrap(anchor.text, egui::FontId::proportional(size), fill);
+        let half = galley.size() / 2.0;
+        let inner = clip.shrink(4.0);
+        let x = pos.x.clamp(
+            inner.min.x + half.x,
+            (inner.max.x - half.x).max(inner.min.x + half.x),
+        );
+        let y = pos.y.clamp(
+            inner.min.y + half.y,
+            (inner.max.y - half.y).max(inner.min.y + half.y),
+        );
+        painter.galley(egui::pos2(x, y) - half, galley, fill);
+    }
 }
 
 // ---------------------------------------------------------------------------

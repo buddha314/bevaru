@@ -7,6 +7,7 @@
 
 pub mod agent;
 pub mod app;
+pub mod authoring;
 pub mod capture;
 pub mod charts;
 pub mod controls;

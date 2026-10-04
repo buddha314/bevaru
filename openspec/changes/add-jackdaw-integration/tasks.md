@@ -1,16 +1,16 @@
 ## 1. Authorable components (`src/authoring.rs`)
 
-- [ ] 1.1 `PerceptronDiagram`, `LossShapeSurface`, and `LobbyEntry`: `Component + Reflect + Default`, `#[reflect(Component, Default)]`, with doc comments for tooltips; `Activation` gains `Reflect`
-- [ ] 1.2 `AuthoringPlugin`: explicit `register_type` for each; build-on-`Added`/`Changed` systems that replace an `AuthoredChildren` set; despawn on removal; shared `DiagramAssets` on first use
-- [ ] 1.3 `LossShapeSurface` builds one mesh child from `ShapeView::sample` + `grid_mesh` (coolwarm, fitted box); invalid ids or values log one warning naming the entity and field, and build nothing
-- [ ] 1.4 Tests (headless): build on add (7 nodes, 6 edges); rebuild on change (negative weight takes the negative colour, no stale children); removal cleans up; unknown view warns without panicking; registry contains all three types; standalone use without the lobby
+- [x] 1.1 `PerceptronDiagram`, `LossShapeSurface`, and `LobbyEntry`: `Component + Reflect + Default`, `#[reflect(Component, Default)]`, with doc comments for tooltips; `Activation` gains `Reflect`
+- [x] 1.2 `AuthoringPlugin`: explicit `register_type` for each; build-on-`Added`/`Changed` systems that replace an `AuthoredChildren` set; despawn on removal; shared `DiagramAssets` on first use
+- [x] 1.3 `LossShapeSurface` builds one mesh child from `ShapeView::sample` + `grid_mesh` (coolwarm, fitted box); invalid ids or values log one warning naming the entity and field, and build nothing
+- [x] 1.4 Tests (headless): build on add (7 nodes, 6 edges); rebuild on change (negative weight takes the negative colour, no stale children); removal cleans up; unknown view warns without panicking; registry contains all three types; standalone use without the lobby
 
 ## 2. Lobby layout overrides
 
-- [ ] 2.1 `LobbyLayout` resource collected from `LobbyEntry` entities each frame they change; unknown ids warn once
-- [ ] 2.2 The lobby UI applies order, title, summary, category, and hidden; experiences without entries follow in registration order; empty categories disappear
-- [ ] 2.3 Hidden experiences stay startable by id, in the examples, by remote control, and in `--list`
-- [ ] 2.4 Tests: reorder and retitle; move category; hidden but startable; no entries means an unchanged lobby; unknown id ignored
+- [x] 2.1 `ExperienceRegistry::lobby_layout(entries)`: a pure function the lobby calls with the current `LobbyEntry` components; unknown ids warn once
+- [x] 2.2 The lobby UI applies order, title, summary, category, and hidden; experiences without entries follow in registration order; empty categories disappear
+- [x] 2.3 Hidden experiences stay startable by id, in the examples, by remote control, and in `--list`
+- [x] 2.4 Tests: reorder and retitle; move category; hidden but startable; no entries means an unchanged lobby; unknown id ignored
 
 ## 3. The Jackdaw project (`jackdaw/`)
 
