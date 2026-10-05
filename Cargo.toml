@@ -1,5 +1,7 @@
 [workspace]
 members = [".", "crates/bevaru-core", "crates/bevaru-mcp"]
+# A standalone Jackdaw project with its own workspace; see docs/jackdaw.md.
+exclude = ["jackdaw"]
 resolver = "3"
 
 [workspace.package]

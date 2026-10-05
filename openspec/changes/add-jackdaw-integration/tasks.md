@@ -14,11 +14,11 @@
 
 ## 3. The Jackdaw project (`jackdaw/`)
 
-- [ ] 3.1 Add `jackdaw` to `workspace.exclude`; create `Cargo.toml` (own `[workspace]`, `bevy = "0.19"`, `bevaru = { path = ".." }`, `jackdaw_runtime` at the `jd 0.19.0` rev with `physics` and `pie`, `avian3d = "0.7"`), `jackdaw.toml` (`plugin = "GamePlugin"`, version pins, a Play run), and `.gitignore`
-- [ ] 3.2 `src/lib.rs` `GamePlugin` (bevaru app plugins, `LobbyPlugin`, `AuthoringPlugin`, load `assets/lobby.bsn`) and `src/main.rs` (`maybe_windowless(DefaultPlugins)`, avian, `JackdawPlugin`, `GamePlugin`)
-- [ ] 3.3 `assets/lobby.bsn` with one `LobbyEntry` per built-in experience, generated from the registry (via `jackdaw_bsn`'s writer if exposed, else a checked template); `assets/examples/perceptron.bsn` and `loss-shapes.bsn`
-- [ ] 3.4 Tests in `jackdaw/`: every committed `.bsn` loads headlessly with the expected components; the lobby scene yields one entry per built-in experience
-- [ ] 3.5 `scripts/check-jackdaw.sh`: builds `jackdaw/` and runs its tests; confirm `scripts/check.sh` resolves no Jackdaw crate
+- [x] 3.1 Add `jackdaw` to `workspace.exclude`; create `Cargo.toml` (own `[workspace]`, `bevy = "0.19"`, `bevaru = { path = ".." }`, `jackdaw_runtime` at the `jd 0.19.0` rev with `physics` and `pie`, `avian3d = "0.7"`), `jackdaw.toml` (`plugin = "GamePlugin"`, version pins, a Play run), and `.gitignore`
+- [x] 3.2 `src/lib.rs` `GamePlugin` (bevaru app plugins, `LobbyPlugin`, `AuthoringPlugin`, load `assets/lobby.bsn`) and `src/main.rs` (`maybe_windowless(DefaultPlugins)`, avian, `JackdawPlugin`, `GamePlugin`)
+- [x] 3.3 `assets/lobby.bsn` with one `LobbyEntry` per built-in experience, generated from the registry (via `jackdaw_bsn`'s writer if exposed, else a checked template); `assets/examples/perceptron.bsn` and `loss-shapes.bsn`
+- [x] 3.4 Tests in `jackdaw/`: every committed `.bsn` loads headlessly with the expected components; the lobby scene yields one entry per built-in experience
+- [x] 3.5 `scripts/check-jackdaw.sh`: builds `jackdaw/` and runs its tests; confirm `scripts/check.sh` resolves no Jackdaw crate
 
 ## 4. Docs
 

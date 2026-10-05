@@ -1,0 +1,24 @@
+# Jackdaw project settings (https://github.com/jbuehler23/jackdaw).
+# Open with `jd open jackdaw` from the bevaru repository root.
+
+# The game's root Bevy plugin, added from main.rs.
+plugin = "GamePlugin"
+
+# Recorded when this project was set up. Jackdaw compares these on open so
+# an editor upgrade is reported instead of surfacing as a build failure.
+[jackdaw]
+version = "0.19.0"
+bevy = "0.19"
+
+# The Play dropdown. The default runs bevaru's lobby with assets/lobby.bsn;
+# the others open an example scene instead.
+[[run]]
+name = "Lobby"
+
+[[run]]
+name = "Perceptron example"
+env = { BEVARU_SCENE = "examples/perceptron.bsn" }
+
+[[run]]
+name = "Loss shapes example"
+env = { BEVARU_SCENE = "examples/loss-shapes.bsn" }
