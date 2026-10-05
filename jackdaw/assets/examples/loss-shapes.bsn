@@ -1,0 +1,82 @@
+// Three bevaru LossShapeSurfaces. Change `view` to any loss-shape id (the
+// capability manifest lists them), then Play ("Loss shapes example").
+
+bevy_ecs::hierarchy::Children [
+    #Camera
+    bevy_transform::components::transform::Transform {
+        translation: glam::Vec3 {
+            x: 0.0,
+            y: -9.5,
+            z: 5.0,
+        },
+        rotation: glam::Quat {
+            x: 0.5383914709091187,
+            y: -0.0,
+            z: -0.0,
+            w: 0.8426948189735413,
+        },
+    }
+    bevy_camera::visibility::Visibility::Visible
+    bevy_camera::components::Camera3d
+    ,
+    #"Key light"
+    bevy_transform::components::transform::Transform {
+        rotation: glam::Quat {
+            x: 0.4598419666290283,
+            y: -0.11811352521181107,
+            z: -0.2189548760652542,
+            w: 0.8524396419525146,
+        },
+    }
+    bevy_camera::visibility::Visibility::Visible
+    bevy_light::directional_light::DirectionalLight {
+        illuminance: 7000.0,
+    }
+    ,
+    #"probability-vs-truth-cross-entropy"
+    bevy_transform::components::transform::Transform {
+        translation: glam::Vec3 {
+            x: -4.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        scale: glam::Vec3 {
+            x: 0.33000001311302185,
+            y: 0.33000001311302185,
+            z: 0.33000001311302185,
+        },
+    }
+    bevy_camera::visibility::Visibility::Visible
+    bevaru::authoring::LossShapeSurface
+    ,
+    #"two-scores-hinge"
+    bevy_transform::components::transform::Transform {
+        scale: glam::Vec3 {
+            x: 0.33000001311302185,
+            y: 0.33000001311302185,
+            z: 0.33000001311302185,
+        },
+    }
+    bevy_camera::visibility::Visibility::Visible
+    bevaru::authoring::LossShapeSurface {
+        view: "two-scores-hinge",
+    }
+    ,
+    #"prediction-vs-truth-huber"
+    bevy_transform::components::transform::Transform {
+        translation: glam::Vec3 {
+            x: 4.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        scale: glam::Vec3 {
+            x: 0.33000001311302185,
+            y: 0.33000001311302185,
+            z: 0.33000001311302185,
+        },
+    }
+    bevy_camera::visibility::Visibility::Visible
+    bevaru::authoring::LossShapeSurface {
+        view: "prediction-vs-truth-huber",
+    }
+]

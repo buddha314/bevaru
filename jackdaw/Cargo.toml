@@ -1,0 +1,30 @@
+[package]
+name = "bevaru-jackdaw"
+version = "0.1.0"
+edition = "2024"
+description = "Edit bevaru's lobby and reuse its visual assets in the Jackdaw editor"
+license = "MIT OR Apache-2.0"
+publish = false
+# One binary for `cargo run` and the editor's Play button.
+default-run = "bevaru-jackdaw"
+
+# Jackdaw builds its editor artifacts in .jackdaw/ and never edits this
+# manifest; `cargo run` works with or without the editor installed.
+# Keeps this project out of bevaru's workspace (which also excludes it).
+[workspace]
+
+[dependencies]
+# Same Bevy release as bevaru (bevaru pins =0.19.1).
+bevy = "0.19"
+bevaru = { path = ".." }
+# Must match bevaru's version, so both use one egui.
+bevy_egui = "=0.42.0"
+# Loads authored scenes (assets/*.bsn). `physics` builds colliders from
+# authored brushes, `pie` connects the editor's Play button; drop `pie` for a
+# shipping build. The revision is the one `jd 0.19.0` writes for a new
+# project; `jd upgrade jackdaw` moves it (see docs/jackdaw.md).
+jackdaw_runtime = { git = "https://github.com/jbuehler23/jackdaw", rev = "5ce71373efb4487866aa2536a3f01cd829783d3d", features = ["physics", "pie"] }
+avian3d = "0.7"
+# Writes and reads .bsn text (the scene generator and its tests); already in
+# the tree through jackdaw_runtime.
+jackdaw_bsn = { git = "https://github.com/jbuehler23/jackdaw", rev = "5ce71373efb4487866aa2536a3f01cd829783d3d" }
