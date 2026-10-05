@@ -22,10 +22,10 @@
 
 ## 4. Docs
 
-- [ ] 4.1 `docs/jackdaw.md`: open and edit the lobby; Play and `cargo run`; use the components in your own project (bevaru as a git dependency, add `AuthoringPlugin`); edits apply to `jackdaw/` only; upgrading the pin; the two upstream findings with reproductions and draft issues (not filed)
-- [ ] 4.2 README: a Jackdaw section linking the doc; regenerate `docs/agents/capabilities.*` if the manifest changes
+- [x] 4.1 `docs/jackdaw.md`: open and edit the lobby; Play and `cargo run`; use the components in your own project (bevaru as a git dependency, add `AuthoringPlugin`); edits apply to `jackdaw/` only; upgrading the pin; the two upstream findings with reproductions and draft issues (not filed)
+- [x] 4.2 README: a Jackdaw section linking the doc; regenerate `docs/agents/capabilities.*` if the manifest changes
 
 ## 5. Verification
 
-- [ ] 5.1 `scripts/check.sh --tests` and `scripts/check-jackdaw.sh` pass
+- [x] 5.1 `scripts/check.sh --tests` and `scripts/check-jackdaw.sh` pass
 - [ ] 5.2 In the real editor: `jd open jackdaw`; the three components appear in Add Component with their tooltips; edit `lobby.bsn` (reorder, retitle, hide) and see it in Play and in `cargo run`; drop a `PerceptronDiagram` and a `LossShapeSurface` into a scene and edit their fields live; note how bevaru's egui UI behaves in Play's stream
