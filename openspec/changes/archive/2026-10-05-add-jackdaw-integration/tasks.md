@@ -28,4 +28,4 @@
 ## 5. Verification
 
 - [x] 5.1 `scripts/check.sh --tests` and `scripts/check-jackdaw.sh` pass
-- [ ] 5.2 In the real editor: `jd open jackdaw`; the three components appear in Add Component with their tooltips; edit `lobby.bsn` (reorder, retitle, hide) and see it in Play and in `cargo run`; drop a `PerceptronDiagram` and a `LossShapeSurface` into a scene and edit their fields live; note how bevaru's egui UI behaves in Play's stream
+- [x] 5.2 In the real editor: `jd open jackdaw`; the three components appear in Add Component with their tooltips; edit `lobby.bsn` (reorder, retitle, hide) and see it in Play and in `cargo run`; drop a `PerceptronDiagram` and a `LossShapeSurface` into a scene and edit their fields live; note how bevaru's egui UI behaves in Play's stream
