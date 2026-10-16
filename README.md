@@ -131,6 +131,21 @@ It is built only from Bevy's own primitives: capsules flattened into round, dome
 - [path to slides](docs/presentation/slides.md): images now, embedded WASM and editable PPTX/ODP shapes next;
 - [math typesetting](docs/presentation/math.md): how formulas are typeset, and the alternatives.
 
+## Jackdaw editor
+
+[Jackdaw](https://github.com/jbuehler23/jackdaw), the interim Bevy 0.19 scene editor, can edit bevaru's lobby and place bevaru's visual assets in scenes:
+
+```sh
+jd open jackdaw                     # edit assets/lobby.bsn: reorder, reword, recategorise, or hide cards
+cd jackdaw && cargo run --release   # run bevaru with the edited lobby
+```
+
+- **The components:** `PerceptronDiagram`, `LossShapeSurface`, and `LobbyEntry` (`src/authoring.rs`) are plain reflected components, so they show up in Jackdaw's Add Component picker. Your own game adds `bevaru::authoring::AuthoringPlugin` to build them.
+- **Where edits apply:** lobby edits apply to the `jackdaw/` project, not to `cargo run` here.
+- **Separate dependencies:** bevaru itself doesn't depend on Jackdaw. `jackdaw/` is a separate project, checked with `scripts/check-jackdaw.sh`.
+
+See [docs/jackdaw.md](docs/jackdaw.md).
+
 ## Visual verification walkthrough
 
 Run each experience from the repository root. The first build may take a few minutes.

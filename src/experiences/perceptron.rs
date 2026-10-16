@@ -9,10 +9,7 @@ use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 
 use super::{ExperienceEntity, ExperienceStarted, ExperienceStopped, in_experience};
 use crate::capture::HideOverlays;
-use crate::diagram::{
-    Activation, Diagram, DiagramAssets, HoverTarget, NEGATIVE, POSITIVE, Sign, pick, sign,
-    spawn_diagram,
-};
+use crate::diagram::{Activation, Diagram, DiagramAssets, HoverTarget, pick, spawn_diagram};
 use crate::formula::{Formula, typeset};
 use crate::orbit::{OrbitPlugin, OrbitRig, OrbitView};
 
@@ -321,40 +318,7 @@ fn labels(
             egui::Id::new("perceptron-labels"),
         ))
         .with_clip_rect(clip);
-    let ink = egui::Color32::from_rgb(40, 40, 50);
-    let color = |c: Color| {
-        let [r, g, b, _] = c.to_srgba().to_u8_array();
-        egui::Color32::from_rgb(r, g, b)
-    };
-    for anchor in scene.diagram.label_anchors() {
-        let Ok(pos) = camera.world_to_viewport(cam, anchor.at) else {
-            continue;
-        };
-        let weight = scene
-            .diagram
-            .edges
-            .iter()
-            .find(|e| e.id == anchor.id)
-            .and_then(|e| e.weight);
-        let (size, fill) = match weight.map(sign) {
-            Some(Sign::Positive) => (17.0, color(POSITIVE)),
-            Some(Sign::Negative) => (17.0, color(NEGATIVE)),
-            Some(Sign::Zero) => (17.0, ink),
-            None => (22.0, ink),
-        };
-        let galley = painter.layout_no_wrap(anchor.text, egui::FontId::proportional(size), fill);
-        let half = galley.size() / 2.0;
-        let inner = clip.shrink(4.0);
-        let x = pos.x.clamp(
-            inner.min.x + half.x,
-            (inner.max.x - half.x).max(inner.min.x + half.x),
-        );
-        let y = pos.y.clamp(
-            inner.min.y + half.y,
-            (inner.max.y - half.y).max(inner.min.y + half.y),
-        );
-        painter.galley(egui::pos2(x, y) - half, galley, fill);
-    }
+    crate::diagram::paint_labels(&painter, clip, camera, cam, &scene.diagram, &|p| p);
     Ok(())
 }
 

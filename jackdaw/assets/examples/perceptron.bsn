@@ -1,0 +1,46 @@
+// A bevaru PerceptronDiagram. Edit its weights, bias, and activation in the
+// inspector, then Play ("Perceptron example") to see it built.
+
+bevy_ecs::hierarchy::Children [
+    #Camera
+    bevy_transform::components::transform::Transform {
+        translation: glam::Vec3 {
+            x: -4.0,
+            y: -13.0,
+            z: 3.0,
+        },
+        rotation: glam::Quat {
+            x: 0.6193804144859314,
+            y: -0.09313476830720901,
+            z: -0.11591551452875137,
+            w: 0.7708808183670044,
+        },
+    }
+    bevy_camera::visibility::Visibility::Visible
+    bevy_camera::components::Camera3d
+    ,
+    #"Key light"
+    bevy_transform::components::transform::Transform {
+        rotation: glam::Quat {
+            x: 0.4598419666290283,
+            y: -0.11811352521181107,
+            z: -0.2189548760652542,
+            w: 0.8524396419525146,
+        },
+    }
+    bevy_camera::visibility::Visibility::Visible
+    bevy_light::directional_light::DirectionalLight {
+        illuminance: 7000.0,
+    }
+    ,
+    #Perceptron
+    bevy_transform::components::transform::Transform {
+        translation: glam::Vec3 {
+            x: -0.6000000238418579,
+            y: 0.0,
+            z: 0.0,
+        },
+    }
+    bevy_camera::visibility::Visibility::Visible
+    bevaru::authoring::PerceptronDiagram
+]

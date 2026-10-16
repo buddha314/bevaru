@@ -42,6 +42,12 @@ if $run_tests; then
         exit 1
     fi
 
+    step "bevaru never depends on Jackdaw (jackdaw/ is a separate project)"
+    if cargo tree --workspace -e all | grep -q '\bjackdaw'; then
+        echo "a jackdaw crate appeared in bevaru's dependency tree" >&2
+        exit 1
+    fi
+
     step "no HTTP client without the mnist feature"
     if cargo tree -p bevaru -e normal | grep -q '\bureq\b'; then
         echo "ureq must only be pulled in by the mnist feature" >&2

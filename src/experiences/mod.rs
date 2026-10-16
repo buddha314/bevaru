@@ -197,6 +197,78 @@ impl ExperienceRegistry {
     }
 }
 
+/// One card as the lobby shows it, after any [`LobbyEntry`] override.
+///
+/// [`LobbyEntry`]: crate::authoring::LobbyEntry
+#[derive(Debug, Clone)]
+pub struct LobbyCard<'a> {
+    pub experience: &'a Experience,
+    pub title: String,
+    pub summary: String,
+}
+
+/// The lobby's categories and cards, and any entries naming experiences
+/// that don't exist.
+#[derive(Debug, Clone, Default)]
+pub struct LobbyLayout<'a> {
+    pub categories: Vec<(String, Vec<LobbyCard<'a>>)>,
+    pub unknown: Vec<String>,
+}
+
+impl ExperienceRegistry {
+    /// The lobby with `entries` applied. Experiences with an entry come
+    /// first, by `order` (ties keep lobby order); the rest follow in lobby
+    /// order. Hidden ones are left out. Categories appear in the order of
+    /// their first card. With no entries this is exactly `by_category`.
+    pub fn lobby_layout<'a>(
+        &'a self,
+        entries: &[&crate::authoring::LobbyEntry],
+    ) -> LobbyLayout<'a> {
+        let entry = |id: &str| entries.iter().rev().find(|e| e.experience == id).copied();
+        let unknown = entries
+            .iter()
+            .filter(|e| self.get(&e.experience).is_none())
+            .map(|e| e.experience.clone())
+            .collect();
+        let lobby: Vec<&Experience> = self.iter().collect();
+        let mut ordered: Vec<(usize, &Experience)> = lobby
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| entry(e.id).is_some())
+            .map(|(i, e)| (i, *e))
+            .collect();
+        ordered.sort_by_key(|(i, e)| (entry(e.id).map_or(0, |x| x.order), *i));
+        let rest = lobby.iter().filter(|e| entry(e.id).is_none()).copied();
+        let mut categories: Vec<(String, Vec<LobbyCard<'a>>)> = Vec::new();
+        for e in ordered.into_iter().map(|(_, e)| e).chain(rest) {
+            let over = entry(e.id);
+            if over.is_some_and(|o| o.hidden) {
+                continue;
+            }
+            let category = over
+                .and_then(|o| o.category.clone())
+                .unwrap_or_else(|| e.category.to_string());
+            let card = LobbyCard {
+                experience: e,
+                title: over
+                    .and_then(|o| o.title.clone())
+                    .unwrap_or_else(|| e.title.to_string()),
+                summary: over
+                    .and_then(|o| o.summary.clone())
+                    .unwrap_or_else(|| e.summary.to_string()),
+            };
+            match categories.iter_mut().find(|(c, _)| *c == category) {
+                Some((_, cards)) => cards.push(card),
+                None => categories.push((category, vec![card])),
+            }
+        }
+        LobbyLayout {
+            categories,
+            unknown,
+        }
+    }
+}
+
 fn is_kebab_case(id: &str) -> bool {
     !id.is_empty()
         && !id.starts_with('-')
@@ -398,6 +470,94 @@ mod tests {
         let ids: Vec<&str> = activations.1.iter().map(|e| e.id).collect();
         assert_eq!(ids, ["sigmoid", "relu"]);
         assert_eq!(groups.last().unwrap().0, "Transformers");
+    }
+
+    fn entry(id: &str, order: i32) -> crate::authoring::LobbyEntry {
+        crate::authoring::LobbyEntry {
+            experience: id.into(),
+            order,
+            ..Default::default()
+        }
+    }
+
+    fn titles<'a>(layout: &LobbyLayout<'a>) -> Vec<(String, Vec<String>)> {
+        layout
+            .categories
+            .iter()
+            .map(|(c, cards)| (c.clone(), cards.iter().map(|k| k.title.clone()).collect()))
+            .collect()
+    }
+
+    #[test]
+    fn lobby_layout_without_entries_is_the_registry() {
+        let r = registry();
+        let layout = r.lobby_layout(&[]);
+        let expected: Vec<(String, Vec<String>)> = r
+            .by_category()
+            .into_iter()
+            .map(|(c, list)| {
+                (
+                    c.to_string(),
+                    list.iter().map(|e| e.title.to_string()).collect(),
+                )
+            })
+            .collect();
+        assert_eq!(titles(&layout), expected);
+        assert!(layout.unknown.is_empty());
+        let summaries: Vec<&str> = layout
+            .categories
+            .iter()
+            .flat_map(|(_, cards)| cards.iter().map(|k| k.summary.as_str()))
+            .collect();
+        let registered: Vec<&str> = r.iter().map(|e| e.summary).collect();
+        assert_eq!(summaries, registered);
+    }
+
+    #[test]
+    fn lobby_entries_reorder_retitle_recategorise_and_hide() {
+        let r = registry();
+        let shapes = crate::authoring::LobbyEntry {
+            title: Some("Shapes of loss".into()),
+            ..entry("loss-shapes", 0)
+        };
+        let iris = entry("iris-svm", 1);
+        let moved = crate::authoring::LobbyEntry {
+            category: Some("Loss functions".into()),
+            ..entry("perceptron", 2)
+        };
+        let hidden = crate::authoring::LobbyEntry {
+            hidden: true,
+            ..entry("sigmoid", 3)
+        };
+        let ghost = entry("no-such-experience", 4);
+        let layout = r.lobby_layout(&[&shapes, &iris, &moved, &hidden, &ghost]);
+        let flat: Vec<&str> = layout
+            .categories
+            .iter()
+            .flat_map(|(_, cards)| cards.iter().map(|k| k.experience.id))
+            .collect();
+        // Ordered entries first, in order, grouped by category.
+        let cats: Vec<&str> = layout.categories.iter().map(|(c, _)| c.as_str()).collect();
+        assert_eq!(cats[0], "Loss functions");
+        assert_eq!(layout.categories[0].1[0].title, "Shapes of loss");
+        let pos = |id: &str| flat.iter().position(|x| *x == id).unwrap();
+        assert!(pos("loss-shapes") < pos("iris-svm"));
+        // Moved: perceptron is under Loss functions; Diagrams is gone (empty).
+        assert!(
+            layout.categories[0]
+                .1
+                .iter()
+                .any(|k| k.experience.id == "perceptron")
+        );
+        assert!(!cats.contains(&"Diagrams"));
+        // Hidden: no Sigmoid card, but still registered and startable by id.
+        assert!(!flat.contains(&"sigmoid"));
+        assert!(r.get("sigmoid").is_some());
+        assert!(!cats.contains(&"Activation functions"));
+        // Unknown ids are reported, not shown.
+        assert_eq!(layout.unknown, ["no-such-experience"]);
+        // Every registered, non-hidden experience is still shown exactly once.
+        assert_eq!(flat.len(), r.len() - 1);
     }
 
     #[test]
