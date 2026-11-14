@@ -20,6 +20,7 @@ pub mod lobby;
 pub mod loss_surface;
 pub mod orbit;
 pub mod playback;
+pub mod record;
 #[cfg(feature = "remote")]
 pub mod remote;
 pub mod scene;
