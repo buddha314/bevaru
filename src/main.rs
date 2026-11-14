@@ -1,6 +1,8 @@
 //! `cargo run` opens the lobby. `cargo run -- <experience-id>` opens one
 //! experience directly; `cargo run -- --list` lists them. For docs,
 //! `--thumbnail <out.png>` captures the experience's scene and exits.
+//! `--record <out.mov>` records the experience to video and exits (see
+//! `bevaru::record` for the `BEVARU_RECORD_*` settings).
 //! With the `remote` feature, `--remote [--remote-port N]` lets agents drive
 //! the window over Bevy Remote Protocol on 127.0.0.1 (default port 15702).
 
@@ -10,6 +12,7 @@ use bevaru::app::windowed_app;
 use bevaru::capture::CapturePlugin;
 use bevaru::experiences::{ExperienceRegistry, ExperiencesPlugin};
 use bevaru::lobby::{Launch, list, parse_args};
+use bevaru::record::RecordPlugin;
 use bevy::prelude::*;
 
 fn main() -> ExitCode {
@@ -25,6 +28,21 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
         None => None,
+    };
+
+    let record = match take_value(&mut args, "--record") {
+        Ok(None) => None,
+        Ok(Some(path)) => match RecordPlugin::from_env(path) {
+            Ok(r) => Some(r),
+            Err(e) => {
+                eprintln!("{e}");
+                return ExitCode::from(2);
+            }
+        },
+        Err(e) => {
+            eprintln!("{e}");
+            return ExitCode::from(2);
+        }
     };
 
     let remote = take_flag(&mut args, "--remote");
@@ -77,6 +95,9 @@ fn main() -> ExitCode {
     }
     if let Some(path) = thumbnail {
         app.add_plugins(CapturePlugin::thumbnail(path));
+    }
+    if let Some(record) = record {
+        app.add_plugins(record);
     }
     app.run();
     ExitCode::SUCCESS

@@ -51,6 +51,7 @@ A window opens on the **lobby**:
 | `cargo run --release -- --list` | List every experience id. |
 | `cargo run --release -- <id>` | Open one experience directly, skipping the lobby (e.g. `iris-svm`). `Esc` still returns to the lobby. |
 | `cargo run --release --features mnist` | Also enable the MNIST experience. Its first start downloads about 11 MB and caches it; set `BEVARU_MNIST_DIR` to use files you already have. |
+| `scripts/record-demos.sh` | Record every experience to a 1920 × 1080 ProRes clip in `recordings/`, for editing. `cargo run --release -- <id> --record out.mov` records one; see `src/record.rs` for the `BEVARU_RECORD_*` settings (length, fps, camera orbit, codec). |
 | `cargo run --release --example iris_svm` | The examples open the same experiences directly. Also available: `regression_mse_vs_mae`, `loss_curves`, `mnist_svm` (needs `--features mnist`) and `ml_interactive` (the sigmoid). |
 | `cargo run --release --example loss_shapes` | Open [Loss shapes in 3D](#loss-shapes-in-3d): every loss as a surface over two inputs. |
 | `cargo run --release --example loss_surface` | Open Training objective in 3D: the objective over a model's weight and bias for hinge, squared hinge, or logistic loss; change C, margin, or L2 strength. |
