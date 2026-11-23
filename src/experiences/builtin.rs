@@ -123,6 +123,18 @@ pub(super) fn register(app: &mut App) {
         requires: Requirement::None,
         note: None,
         kind: ExperienceKind::Custom,
+    })
+    .register_experience(Experience {
+        id: super::bloch::ID,
+        title: "Bloch sphere: data encodings",
+        summary: "Classical data written into qubits as rotations: watch angle, phase, amplitude, and entangling encodings trace their shapes on the Bloch sphere.",
+        category: "Quantum computing",
+        thumbnail: Some(Thumbnail::Embedded(include_bytes!(
+            "../../assets/thumbnails/bloch-sphere.png"
+        ))),
+        requires: Requirement::None,
+        note: None,
+        kind: ExperienceKind::Custom,
     });
 }
 

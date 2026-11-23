@@ -14,6 +14,7 @@ use bevy::time::TimeUpdateStrategy;
 use super::*;
 use crate::SigmoidPlotPlugin;
 use crate::charts::{ChartSettings, Charts, ChartsPlugin, WeightImages};
+use crate::experiences::bloch::{BlochAssets, BlochControls, BlochQubit, BlochScene, Mode};
 use crate::experiences::loss_shapes::{ShapeChart, ShapeControls, ShapeSampling};
 use crate::experiences::loss_surface::{ObjectiveControls, ObjectiveSurfaceState};
 use crate::experiences::perceptron::{PerceptronControls, PerceptronScene, SlideView};
@@ -165,6 +166,10 @@ fn assert_clean(app: &mut App) {
     );
     assert_eq!(count::<With<crate::diagram::DiagramRoot>>(app), 0);
     assert_eq!(count::<With<OrbitRig>>(app), 0);
+    assert!(!app.world().contains_resource::<BlochControls>());
+    assert!(!app.world().contains_resource::<BlochScene>());
+    assert!(!app.world().contains_resource::<BlochAssets>());
+    assert_eq!(count::<With<BlochQubit>>(app), 0);
 }
 
 #[test]
@@ -404,6 +409,7 @@ fn repeated_round_trips_do_not_grow_the_app() {
     assert!(ids.len() >= 4);
     assert!(ids.contains(&"loss-shapes") && ids.contains(&"loss-surface"));
     assert!(ids.contains(&"perceptron"));
+    assert!(ids.contains(&"bloch-sphere"));
     for _ in 0..10 {
         for &id in &ids {
             enter(&mut app, id);
@@ -658,4 +664,79 @@ fn hidden_lobby_entries_still_start_by_id() {
     );
     // `--list` still includes it: hiding is presentation, not availability.
     assert!(list(app.world().resource::<ExperienceRegistry>()).contains("sigmoid"));
+}
+
+#[test]
+fn bloch_sphere_animates_encodings_and_switches_to_two_qubits() {
+    use bevaru_core::quantum::Encoding;
+    let close = |a: [f64; 3], b: [f64; 3]| (0..3).all(|i| (a[i] - b[i]).abs() < 1e-6);
+
+    let mut app = lobby_app();
+    enter(&mut app, "bloch-sphere");
+    frames(&mut app, 2);
+    assert_eq!(count::<With<BlochQubit>>(&mut app), 1);
+    assert_eq!(
+        app.world().resource::<BlochControls>().encoding,
+        Encoding::AngleRy
+    );
+
+    // Paused at the start: the arrow is at |0⟩ and stays there.
+    app.world_mut().resource_mut::<BlochControls>().playing = false;
+    app.world_mut().resource_mut::<BlochScene>().progress = 0.0;
+    frames(&mut app, 10);
+    let scene = app.world().resource::<BlochScene>();
+    assert_eq!(scene.progress, 0.0);
+    assert!(close(scene.current()[0], [0.0, 0.0, 1.0]));
+
+    // Played to the end of the circuit: the arrow is the encoded state.
+    {
+        let mut c = app.world_mut().resource_mut::<BlochControls>();
+        c.playing = true;
+        c.speed = 4.0;
+    }
+    run_until(&mut app, "the end of the circuit", |w| {
+        w.resource::<BlochScene>().at_end()
+    });
+    let x = app.world().resource::<BlochControls>().features.clone();
+    let end = app.world().resource::<BlochScene>().current();
+    assert!(close(end[0], Encoding::AngleRy.encode(&x).bloch(0)));
+
+    // Sweeping phase encoding: the locus is the equator.
+    {
+        let mut c = app.world_mut().resource_mut::<BlochControls>();
+        c.encoding = Encoding::Phase;
+        c.mode = Mode::Sweep;
+    }
+    frames(&mut app, 2);
+    let scene = app.world().resource::<BlochScene>();
+    assert!(scene.locus[0].iter().all(|b| b[2].abs() < 1e-9));
+    assert!(scene.swept_value().is_some());
+
+    // The ZZ feature map: two spheres, restarted from |00⟩.
+    {
+        let mut c = app.world_mut().resource_mut::<BlochControls>();
+        c.encoding = Encoding::ZzFeatureMap;
+        c.mode = Mode::Gates;
+        c.playing = false;
+    }
+    frames(&mut app, 3);
+    assert_eq!(count::<With<BlochQubit>>(&mut app), 2);
+    let features = app.world().resource::<BlochControls>().features.clone();
+    assert_eq!(features, Encoding::ZzFeatureMap.defaults());
+    let scene = app.world().resource::<BlochScene>();
+    assert_eq!(scene.progress, 0.0);
+    assert!(scene.current().iter().all(|b| close(*b, [0.0, 0.0, 1.0])));
+    // At the end, each qubit's vector lies inside its sphere: entangled.
+    app.world_mut().resource_mut::<BlochControls>().playing = true;
+    app.world_mut().resource_mut::<BlochControls>().speed = 4.0;
+    run_until(&mut app, "the end of the ZZ circuit", |w| {
+        w.resource::<BlochScene>().at_end()
+    });
+    for b in app.world().resource::<BlochScene>().current() {
+        let len = (b[0] * b[0] + b[1] * b[1] + b[2] * b[2]).sqrt();
+        assert!(len < 0.99, "length {len}");
+    }
+
+    leave_now(&mut app);
+    assert_clean(&mut app);
 }

@@ -6,6 +6,9 @@
 //! feature, [`typeset`] reports that typesetting is unavailable and callers
 //! show the formula's plain-text form instead.
 
+use std::collections::HashMap;
+
+use bevy_egui::egui;
 use serde::{Deserialize, Serialize};
 
 /// A formula: Typst math source, and the same formula as plain Unicode text
@@ -76,6 +79,37 @@ pub fn typeset(_typst: &str, _size_pt: f32) -> Result<FormulaImage, String> {
 pub fn warm_up() {
     if AVAILABLE {
         let _ = typeset("$x$", 12.0);
+    }
+}
+
+/// Typeset formulas as egui textures, by Typst source and scale. An error
+/// (or a build without `math`) is remembered, so it isn't retried each frame.
+#[derive(Default)]
+pub struct FormulaTextures(HashMap<(String, u32), Result<egui::TextureHandle, String>>);
+
+impl FormulaTextures {
+    /// More than enough for one screen's formulas at a few values.
+    const CAPACITY: usize = 128;
+
+    pub fn get(
+        &mut self,
+        ctx: &egui::Context,
+        formula: &Formula,
+        pixels_per_point: f32,
+    ) -> Result<egui::TextureHandle, String> {
+        let key = (formula.typst.clone(), (pixels_per_point * 100.0) as u32);
+        if !self.0.contains_key(&key) && self.0.len() >= Self::CAPACITY {
+            self.0.clear();
+        }
+        self.0
+            .entry(key)
+            .or_insert_with(|| {
+                let img = typeset(&formula.typst, 20.0 * pixels_per_point)?;
+                let image =
+                    egui::ColorImage::from_rgba_premultiplied([img.width, img.height], &img.rgba);
+                Ok(ctx.load_texture("formula", image, egui::TextureOptions::LINEAR))
+            })
+            .clone()
     }
 }
 

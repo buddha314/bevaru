@@ -26,7 +26,10 @@ impl Plugin for ShapeViewPlugin {
                 Update,
                 (sync_scene, update_probe, draw_gizmos)
                     .chain()
-                    .run_if(resource_exists::<ShapePlot>),
+                    // Checked per system, not once for the chain: the chain has
+                    // command-flush points between its systems, and leaving the
+                    // experience can remove `ShapePlot` at one of them.
+                    .distributive_run_if(resource_exists::<ShapePlot>),
             )
             .add_systems(
                 EguiPrimaryContextPass,

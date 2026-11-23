@@ -144,6 +144,13 @@
       "kind": "custom",
       "summary": "The logistic sigmoid σ(x) = 1 / (1 + e^−x), plotted with ruviz.",
       "title": "Sigmoid"
+    },
+    {
+      "category": "Quantum computing",
+      "id": "bloch-sphere",
+      "kind": "custom",
+      "summary": "Classical data written into qubits as rotations: watch angle, phase, amplitude, and entangling encodings trace their shapes on the Bloch sphere.",
+      "title": "Bloch sphere: data encodings"
     }
   ],
   "loss_shapes": [
