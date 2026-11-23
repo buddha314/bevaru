@@ -1,5 +1,6 @@
 //! Bevy-independent core of bevaru: loss functions, linear models trained a
-//! step at a time, datasets, and projections for display.
+//! step at a time, datasets, projections for display, and qubit data
+//! encodings on the Bloch sphere.
 
 pub use nalgebra;
 
@@ -7,6 +8,7 @@ pub mod dataset;
 pub mod loss;
 pub mod model;
 pub mod projection;
+pub mod quantum;
 pub mod shapes;
 pub mod surface;
 

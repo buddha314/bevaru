@@ -31,6 +31,7 @@
 //! .add_systems(Update, my_system.run_if(in_experience("my-demo")));
 //! ```
 
+pub mod bloch;
 mod builtin;
 pub mod layout;
 pub mod loss_shapes;
@@ -352,6 +353,7 @@ impl Plugin for ExperiencesPlugin {
                 loss_shapes::LossShapesExperiencePlugin,
                 loss_surface::LossSurfaceExperiencePlugin,
                 perceptron::PerceptronExperiencePlugin,
+                bloch::BlochExperiencePlugin,
             ));
         }
         // The sigmoid experience draws a sprite, so it needs a renderer;
@@ -407,6 +409,7 @@ mod tests {
             "loss-surface",
             "perceptron",
             "sigmoid",
+            "bloch-sphere",
         ] {
             let e = r.get(id).unwrap_or_else(|| panic!("{id} missing"));
             assert!(is_kebab_case(e.id));

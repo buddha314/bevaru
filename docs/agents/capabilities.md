@@ -132,6 +132,7 @@ Open one with `cargo run -- <id>`, or from the lobby.
 | `loss-surface` | Training objective in 3D | Loss functions | custom | The training objective over a model's weight and bias, for hinge, squared hinge, and logistic loss: the shape of training with each loss. |
 | `perceptron` | Perceptron in 3D | Diagrams | custom | A perceptron drawn for slides: inputs, weights, a sum, an activation, and the output, with weights you can change live. |
 | `sigmoid` | Sigmoid | Activation functions | custom | The logistic sigmoid σ(x) = 1 / (1 + e^−x), plotted with ruviz. |
+| `bloch-sphere` | Bloch sphere: data encodings | Quantum computing | custom | Classical data written into qubits as rotations: watch angle, phase, amplitude, and entangling encodings trace their shapes on the Bloch sphere. |
 
 ## Messages
 

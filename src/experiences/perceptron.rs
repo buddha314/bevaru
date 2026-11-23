@@ -2,15 +2,13 @@
 //! 3-D scene, with live weights, typeset formulas on hover, and a slide view
 //! (`H`) that hides every control so a window capture is the slide.
 
-use std::collections::HashMap;
-
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass, egui};
 
 use super::{ExperienceEntity, ExperienceStarted, ExperienceStopped, in_experience};
 use crate::capture::HideOverlays;
 use crate::diagram::{Activation, Diagram, DiagramAssets, HoverTarget, pick, spawn_diagram};
-use crate::formula::{Formula, typeset};
+use crate::formula::FormulaTextures;
 use crate::orbit::{OrbitPlugin, OrbitRig, OrbitView};
 
 pub const ID: &str = "perceptron";
@@ -320,37 +318,6 @@ fn labels(
         .with_clip_rect(clip);
     crate::diagram::paint_labels(&painter, clip, camera, cam, &scene.diagram, &|p| p);
     Ok(())
-}
-
-/// Typeset formulas as egui textures, by Typst source and scale. An error
-/// (or a build without `math`) is remembered, so it isn't retried each frame.
-#[derive(Default)]
-pub(crate) struct FormulaTextures(HashMap<(String, u32), Result<egui::TextureHandle, String>>);
-
-impl FormulaTextures {
-    /// More than enough for one diagram's formulas at a few weight values.
-    const CAPACITY: usize = 128;
-
-    fn get(
-        &mut self,
-        ctx: &egui::Context,
-        formula: &Formula,
-        pixels_per_point: f32,
-    ) -> Result<egui::TextureHandle, String> {
-        let key = (formula.typst.clone(), (pixels_per_point * 100.0) as u32);
-        if !self.0.contains_key(&key) && self.0.len() >= Self::CAPACITY {
-            self.0.clear();
-        }
-        self.0
-            .entry(key)
-            .or_insert_with(|| {
-                let img = typeset(&formula.typst, 20.0 * pixels_per_point)?;
-                let image =
-                    egui::ColorImage::from_rgba_premultiplied([img.width, img.height], &img.rgba);
-                Ok(ctx.load_texture("perceptron-formula", image, egui::TextureOptions::LINEAR))
-            })
-            .clone()
-    }
 }
 
 /// Show the formula of the node or tube under the pointer, typeset beside

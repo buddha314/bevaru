@@ -56,6 +56,7 @@ A window opens on the **lobby**:
 | `cargo run --release --example loss_shapes` | Open [Loss shapes in 3D](#loss-shapes-in-3d): every loss as a surface over two inputs. |
 | `cargo run --release --example loss_surface` | Open Training objective in 3D: the objective over a model's weight and bias for hinge, squared hinge, or logistic loss; change C, margin, or L2 strength. |
 | `cargo run --release --example perceptron_3d` | Open [Perceptron in 3D](#perceptron-in-3d): a slide-ready perceptron diagram. |
+| `cargo run --release --example bloch_sphere` | Open [Bloch sphere: data encodings](#bloch-sphere-data-encodings): quantum data encodings animated as rotations. |
 
 ### Troubleshooting
 
@@ -81,6 +82,7 @@ Every experience, and how to open it directly:
 | Loss shapes in 3D | `cargo run --release -- loss-shapes` | Every loss as a 3-D surface over two inputs, with its 2-D curve as a highlighted slice. See [Loss shapes in 3D](#loss-shapes-in-3d). |
 | Training objective in 3D | `cargo run --release -- loss-surface` | The training objective over one weight and the bias, for hinge, squared hinge, and logistic loss. |
 | Perceptron in 3D | `cargo run --release -- perceptron` | A perceptron drawn for slides, with weights you can change live. See [Perceptron in 3D](#perceptron-in-3d). |
+| Bloch sphere: data encodings | `cargo run --release -- bloch-sphere` | Classical data written into qubits as rotations, gate by gate or as a data sweep. See [Bloch sphere: data encodings](#bloch-sphere-data-encodings). |
 | Sigmoid | `cargo run --release -- sigmoid` | The original scaffold: a ruviz sigmoid plot shown as a sprite. |
 
 ![MSE, MAE and Huber fits on data with outliers](docs/images/regression_mse_vs_mae.webp)
@@ -132,6 +134,28 @@ It is built only from Bevy's own primitives: capsules flattened into round, dome
 - [path to slides](docs/presentation/slides.md): images now, embedded WASM and editable PPTX/ODP shapes next;
 - [math typesetting](docs/presentation/math.md): how formulas are typeset, and the alternatives.
 
+## Bloch sphere: data encodings
+
+Quantum machine learning starts by *encoding* classical data into qubits, and every encoding is a sequence of rotations. **Bloch sphere: data encodings** (`cargo run --release -- bloch-sphere`) shows each one as a shape on the Bloch sphere, with |0⟩ at the top:
+
+| Encoding | Circuit | Shape |
+| -------- | ------- | ----- |
+| Angle (RY, RX) | RY(x) or RX(x) | A meridian: x is a latitude. |
+| Phase | H, then P(x) | The equator: x is a longitude. |
+| Dense angle | RY(x₁), then RZ(x₂) | Latitude and longitude: the whole sphere. |
+| Amplitude | (x₁\|0⟩ + x₂\|1⟩)/‖x‖ | The x–z meridian; scaling x changes nothing, because the norm is lost. |
+| Basis | Xᵇ | Only the two poles. |
+| Data re-uploading | (RY(x), RZ(x)) three times | A curve that winds round the sphere: higher frequencies in x. |
+| ZZ feature map (2 qubits) | H⊗H, RZ(2x₁)⊗RZ(2x₂), exp(−i(π−x₁)(π−x₂)Z⊗Z) | Entangling: each qubit's vector shrinks *inside* its sphere. |
+
+- **Gate by gate:** each gate rotates the state continuously, as exp(−i·s·G) with s running from 0 to 1. The trail shows the path. For a single-qubit gate, the dashed line is the rotation axis and the faint circle is the circle the state turns on.
+- **Sweep the data:** one feature sweeps its range and the encoded state follows, leaving the encoding's locus behind.
+- **Controls:** choose the encoding, set the features, play, pause, restart, change the speed, and toggle the trail or locus and the labels. The panel shows the encoding's formula, typeset with Typst like the perceptron's, and each qubit's Bloch vector r and its length |r|.
+
+![Angle encoding on the Bloch sphere: the state rotated by RY(x), its trail, and the typeset formula](docs/images/bloch_sphere.webp)
+
+The math is in `bevaru_core::quantum`, which has no Bevy dependency. It provides small state vectors, gates stored as rotation generators so any gate can be applied partially, reduced Bloch vectors, the encoding catalogue, gate paths, and loci.
+
 ## Jackdaw editor
 
 [Jackdaw](https://github.com/jbuehler23/jackdaw), the interim Bevy 0.19 scene editor, can edit bevaru's lobby and place bevaru's visual assets in scenes:
@@ -163,6 +187,8 @@ For a 3-D camera check, run Iris, select **3-D (third feature)**, and click **Lo
 For the loss shapes, run `cargo run --release -- loss-shapes`. The binary cross-entropy surface should open, with its caption and the logistic curve on the right. Work through every family and loss: each shape should match its caption, the orange slice should match the 2-D curve, and the probe should show a downhill arrow (or "no gradient here" on flat regions). Drag δ or the margin where offered and change the resolution; the surface should update in place.
 
 For the perceptron diagram, run `cargo run --release -- perceptron`. Blue tubes should be positive weights and orange negative, thicker for larger |w|. Drag a weight through zero and watch its tube change colour and thickness. Switch the activation between sigmoid and step and watch the σ label change. Hover over Σ: a tooltip should show z = Σ wᵢxᵢ + b with the current weights, the negative ones in orange. Move a weight and the tooltip should follow. Hover over σ to see the activation's formula. Press `H`: the controls and the lobby button should disappear and the view should swing nearly front-on, with the labels kept. Press `H` again to bring the controls back.
+
+For the Bloch sphere, run `cargo run --release -- bloch-sphere`. Angle encoding (RY) should start at |0⟩ and rotate down the x–z meridian, with an orange trail, a dashed rotation axis along y, and the typeset formula in the panel. Switch to **Phase encoding**: the state should go from |0⟩ to |+⟩ (the H gate, about the dashed (x+z)/√2 axis), then round the equator. Choose **Sweep the data**: the locus should be the equator. Choose **ZZ feature map**: two spheres should appear, and by the end of the circuit both arrows should be shorter than the radius, with |r| < 1 shown in the panel.
 
 For the training objective, run `cargo run --release -- loss-surface` (or `--example loss_surface`). Its red X axis is one model weight, green Y is the bias, and blue Z is the training objective (mean loss plus L2 regularization) for eight fixed binary samples. Select **Hinge**, **Squared hinge**, or **Logistic (binary cross-entropy)** in the panel. Change **C** and **hinge margin** for SVM losses or **L2 λ** for logistic loss; the surface and its objective range should update. Left-drag to orbit, right-drag to pan, scroll to zoom, and press `F` to frame it again.
 
